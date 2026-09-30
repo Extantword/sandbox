@@ -24,7 +24,7 @@ export type Slide =
   | { kind: "collage"; pictures: Picture[] }
   | { kind: "quote"; text: string; by: string }
   | { kind: "list"; title: string; items: string[]; source?: string; numbered?: boolean }
-  | { kind: "principle"; count: string; name: string; says: string; animation: AnimationName; link?: Link }
+  | { kind: "principle"; count?: string; name: string; says: string; animation: AnimationName; link?: Link }
   | { kind: "example"; title: string; says: string; example: string; pictures: Picture[] }
   | { kind: "gallery"; title: string; pictures: Picture[]; large: Picture }
   | { kind: "app"; src: string; title: string };
@@ -97,6 +97,12 @@ export const SLIDES: Slide[] = [
       img("picbreeder-3", "Una mariposa evolucionada en Picbreeder"),
     ],
     large: img("picbreeder-galeria", "La galería de imágenes de Picbreeder"),
+  },
+  {
+    kind: "principle",
+    name: "Maravilla accidental",
+    says: "En Picbreeder nadie tenía un objetivo: cada quien elegía la imagen que le parecía interesante, la publicaba, y otros continuaban desde ahí. Así aparecieron calaveras, mariposas y autos que nadie había buscado, y los pasos intermedios casi nunca se parecían al resultado. Buscarlos a propósito no funcionaba.",
+    animation: "picbreeder",
   },
   {
     kind: "list",

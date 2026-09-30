@@ -57,7 +57,7 @@ function build(slide: Slide): HTMLElement {
       page.innerHTML = `
         <div class="principle">
           <div class="principle__text">
-            <p class="principle__count">${escapeHtml(slide.count)}</p>
+            ${slide.count ? `<p class="principle__count">${escapeHtml(slide.count)}</p>` : ""}
             <h2 class="principle__name">${escapeHtml(slide.name)}</h2>
             <p class="principle__says">${rich(slide.says)}</p>
             ${slide.link ? `<a class="principle__link" href="${slide.link.href}" target="_blank" rel="noopener">${escapeHtml(slide.link.text)} ↗</a>` : ""}

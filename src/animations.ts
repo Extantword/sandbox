@@ -19,7 +19,8 @@ export type AnimationName =
   | "programming"
   | "want"
   | "yourself"
-  | "iterate";
+  | "iterate"
+  | "picbreeder";
 
 const INK = "#1b1d22";
 const MUTED = "#9097a1";
@@ -933,6 +934,214 @@ function iterate(): Frame {
   };
 }
 
+/* ---- maravilla accidental: Picbreeder's tree, where nobody was looking for what turned up ---- */
+
+/**
+ * A little picture-making network, as Picbreeder's were: the colour at (x, y) is worked out from x,
+ * y and the distance to the middle, through a few nodes each bending its sum with its own function.
+ * A child is its parent with the weights nudged and now and then a node added, so pictures along
+ * a branch look related while drifting anywhere at all.
+ */
+type Net = { fn: number; from: { k: number; w: number }[] }[];
+const FNS: ((v: number) => number)[] = [
+  Math.sin,
+  (v) => Math.exp(-v * v * 2),
+  Math.tanh,
+  (v) => Math.abs(v) - 0.5,
+  (v) => Math.cos(3 * v),
+];
+const INPUTS = 4; // x, y, d, bias
+const gauss = () => Math.sqrt(-2 * Math.log(Math.random() + 1e-9)) * Math.cos(TAU * Math.random());
+
+function randomNet(): Net {
+  const net: Net = [];
+  const add = () => {
+    const sources = INPUTS + net.length;
+    net.push({
+      fn: Math.floor(Math.random() * FNS.length),
+      from: Array.from({ length: 2 + Math.floor(Math.random() * 2) }, () => ({ k: Math.floor(Math.random() * sources), w: gauss() * 1.6 })),
+    });
+  };
+  for (let i = 0; i < 5; i++) add();
+  return net;
+}
+
+function mutate(net: Net): Net {
+  const child: Net = net.map((node) => ({
+    fn: Math.random() < 0.08 ? Math.floor(Math.random() * FNS.length) : node.fn,
+    from: node.from.map((c) => ({ k: c.k, w: c.w + (Math.random() < 0.7 ? gauss() * 0.45 : 0) })),
+  }));
+  if (Math.random() < 0.45) {
+    // A new node before the three outputs, feeding one of them.
+    const at = child.length - 3;
+    const sources = INPUTS + at;
+    const node = { fn: Math.floor(Math.random() * FNS.length), from: [0, 1].map(() => ({ k: Math.floor(Math.random() * sources), w: gauss() * 1.6 })) };
+    child.splice(at, 0, node);
+    for (let j = at + 1; j < child.length; j++) for (const c of child[j]!.from) if (c.k >= INPUTS + at) c.k++;
+    child[at + 1 + Math.floor(Math.random() * 3)]!.from.push({ k: INPUTS + at, w: gauss() * 1.6 });
+  }
+  return child;
+}
+
+function paint(net: Net, size: number): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const c = canvas.getContext("2d")!;
+  const image = c.createImageData(size, size);
+  const values = new Float64Array(INPUTS + net.length);
+  for (let py = 0; py < size; py++)
+    for (let px = 0; px < size; px++) {
+      const x = (px / (size - 1)) * 2 - 1, y = (py / (size - 1)) * 2 - 1;
+      values[0] = x * 1.5; values[1] = y * 1.5; values[2] = Math.hypot(x, y) * 1.5; values[3] = 1;
+      net.forEach((node, i) => {
+        let sum = 0;
+        for (const { k, w } of node.from) sum += values[k]! * w;
+        values[INPUTS + i] = FNS[node.fn]!(sum);
+      });
+      const n = INPUTS + net.length;
+      const hue = ((Math.tanh(values[n - 3]!) + 1) * 180 + 200) % 360;
+      const sat = 0.35 + 0.65 * Math.abs(Math.tanh(values[n - 2]!));
+      const light = 0.12 + 0.8 * Math.abs(Math.tanh(values[n - 1]!));
+      // hsl to rgb
+      const q = light < 0.5 ? light * (1 + sat) : light + sat - light * sat, p = 2 * light - q;
+      const channel = (t: number) => {
+        t = ((t % 1) + 1) % 1;
+        return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p;
+      };
+      const o = (py * size + px) * 4, h01 = hue / 360;
+      image.data[o] = channel(h01 + 1 / 3) * 255;
+      image.data[o + 1] = channel(h01) * 255;
+      image.data[o + 2] = channel(h01 - 1 / 3) * 255;
+      image.data[o + 3] = 255;
+    }
+  c.putImageData(image, 0, 0);
+  return canvas;
+}
+
+const FINDS = ["img/picbreeder-1.png", "img/picbreeder-2.png", "img/picbreeder-3.png"].map((src) => {
+  const image = new Image();
+  image.src = src;
+  return image;
+});
+
+function picbreeder(): Frame {
+  type Node = { depth: number; parent: number; y: number; picture: HTMLCanvasElement | HTMLImageElement; find: number; at: number };
+  const DEPTH = 5;
+  let nodes: Node[] = [];
+  let path: number[] = [];
+  let clock = 0;
+  const STEP = 1.05, GROWN = DEPTH * STEP + 1.3, FOUND = GROWN + 1.8, TRACE = FOUND + 4.2, END = TRACE + 1;
+
+  const reset = () => {
+    // A tree: each picture published, and one to three people carrying on from it.
+    type Raw = { depth: number; parent: number; net: Net };
+    const raw: Raw[] = [{ depth: 0, parent: -1, net: randomNet() }];
+    for (let d = 0; d < DEPTH; d++) {
+      const level = raw.map((node, i) => ({ node, i })).filter(({ node }) => node.depth === d);
+      level.forEach(({ node, i }) => {
+        const children = d === 0 ? 2 : d < 2 ? 1 + Math.floor(Math.random() * 2) + (Math.random() < 0.3 ? 1 : 0) : Math.random() < 0.25 ? 0 : 1 + (Math.random() < 0.35 ? 1 : 0);
+        for (let k = 0; k < children && raw.filter((n) => n.depth === d + 1).length < 6; k++)
+          raw.push({ depth: d + 1, parent: i, net: mutate(mutate(node.net)) });
+      });
+      // Some branches die out, but at least three reach the end, where the finds are.
+      while (raw.filter((n) => n.depth === d + 1).length < 3) {
+        const { node, i } = level[Math.floor(Math.random() * level.length)]!;
+        raw.push({ depth: d + 1, parent: i, net: mutate(mutate(node.net)) });
+      }
+    }
+    // Rows: each leaf its own, a parent in the middle of its children.
+    const kids = raw.map((_, i) => raw.map((node, j) => ({ node, j })).filter(({ node }) => node.parent === i).map(({ j }) => j));
+    const ys = new Array<number>(raw.length).fill(0);
+    let row = 0;
+    const place = (i: number): number => {
+      const c = kids[i]!;
+      ys[i] = c.length ? c.map(place).reduce((a, b) => a + b, 0) / c.length : row++;
+      return ys[i]!;
+    };
+    place(0);
+    const leaves = raw.map((node, i) => ({ node, i })).filter(({ node, i }) => node.depth === DEPTH && kids[i]!.length === 0);
+    const finds = [...leaves].sort(() => Math.random() - 0.5).slice(0, 3).map(({ i }) => i);
+    nodes = raw.map((node, i) => ({
+      depth: node.depth,
+      parent: node.parent,
+      y: ys[i]! / Math.max(1, row - 1),
+      picture: finds.includes(i) ? FINDS[finds.indexOf(i)]! : paint(node.net, 36),
+      find: finds.indexOf(i),
+      at: node.depth * STEP + Math.random() * 0.35,
+    }));
+    // The road to the butterfly, the last of the finds.
+    path = [];
+    for (let i = finds[finds.length - 1] ?? 0; i >= 0; i = nodes[i]!.parent) path.unshift(i);
+    clock = 0;
+  };
+  reset();
+
+  return (ctx, w, h, dt) => {
+    clock += dt;
+    if (clock > END) reset();
+    const fade = clock > TRACE ? 1 - clamp01((clock - TRACE) / (END - TRACE)) : 1;
+    const tracing = ease((clock - FOUND) / 0.8);
+
+    const top = 14, bottom = h - 56;
+    const rows = nodes.filter((node) => node.depth === DEPTH || nodes.every((m) => m.parent !== nodes.indexOf(node))).length;
+    const size = Math.min((w - 20) / (DEPTH + 1) * 0.62, ((bottom - top) / Math.max(1, rows)) * 0.86, 64);
+    const X = (d: number) => 10 + size / 2 + (d / DEPTH) * (w - 20 - size);
+    const Y = (y: number) => top + size / 2 + y * (bottom - top - size);
+    const onPath = (i: number) => path.includes(i);
+
+    ctx.globalAlpha = fade;
+    nodes.forEach((node, i) => {
+      if (node.parent < 0) return;
+      const grow = ease((clock - node.at + 0.5) / 0.5);
+      if (grow <= 0) return;
+      const p = nodes[node.parent]!;
+      const x0 = X(p.depth) + size / 2, y0 = Y(p.y), x1 = X(node.depth) - size / 2, y1 = Y(node.y);
+      const lit = onPath(i) && tracing > 0;
+      ctx.globalAlpha = fade * (tracing > 0 && !lit ? lerp(1, 0.3, tracing) : 1);
+      ctx.strokeStyle = lit ? ORANGE : MUTED;
+      ctx.lineWidth = lit ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      const xm = lerp(x0, x1, grow);
+      ctx.bezierCurveTo(lerp(x0, xm, 0.5), y0, lerp(x0, xm, 0.5), lerp(y0, y1, grow), xm, lerp(y0, y1, grow));
+      ctx.stroke();
+    });
+    nodes.forEach((node, i) => {
+      const show = ease((clock - node.at) / 0.35);
+      if (show <= 0) return;
+      const found = node.find >= 0;
+      if (found && clock < GROWN) return;
+      const pop = found ? ease((clock - GROWN) / 0.4) : show;
+      const s = size * pop * (found ? 1.12 : 1);
+      const x = X(node.depth), y = Y(node.y);
+      const lit = onPath(i) && tracing > 0;
+      ctx.globalAlpha = fade * (tracing > 0 && !lit && !found ? lerp(1, 0.3, tracing) : 1);
+      const picture = node.picture;
+      if (!(picture instanceof HTMLImageElement) || picture.complete) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(picture, x - s / 2, y - s / 2, s, s);
+      }
+      if (found || lit) {
+        ctx.strokeStyle = ORANGE;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - s / 2 - 2, y - s / 2 - 2, s + 4, s + 4);
+      }
+    });
+    ctx.globalAlpha = 1;
+
+    const words =
+      clock < STEP * 1.6
+        ? "cada quien elige lo que le parece interesante y lo publica"
+        : clock < GROWN
+          ? "otros continúan desde ahí, sin un objetivo común"
+          : clock < FOUND
+            ? "nadie buscaba esto"
+            : "ninguno de los pasos intermedios parecía una mariposa";
+    caption(ctx, words, w / 2, h - 30, 16, clock >= GROWN && clock < TRACE ? ORANGE : MUTED);
+    caption(ctx, "las imágenes al final de las ramas son hallazgos reales de Picbreeder", w / 2, h - 8, 12);
+  };
+}
+
 export const ANIMATIONS: Readonly<Record<AnimationName, () => Frame>> = {
   designers,
   floor,
@@ -944,4 +1153,5 @@ export const ANIMATIONS: Readonly<Record<AnimationName, () => Frame>> = {
   want,
   yourself,
   iterate,
+  picbreeder,
 };
