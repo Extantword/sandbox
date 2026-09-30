@@ -1,0 +1,464 @@
+/* The geometry decks' light theme: a white page, ink, a muted grey, and one orange for every highlight. */
+:root {
+  --page: #ffffff;
+  --ink: #1b1d22;
+  --muted: #9097a1;
+  --highlight: rgb(242 115 5);
+  --serif: "KaTeX_Main", "Latin Modern Roman", "Iowan Old Style", Georgia, serif;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --rule: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  overflow: hidden;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+strong {
+  font-weight: bold;
+}
+
+img {
+  display: block;
+  user-select: none;
+}
+
+/* ---- one page at a time, each fading into the next ---- */
+
+.slide {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10vh 6vw;
+  box-sizing: border-box;
+  background: var(--page);
+  font-family: var(--serif);
+  font-size: clamp(18px, 2.1vw, 38px);
+  line-height: 1.4;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 500ms var(--ease),
+    visibility 0s linear 500ms;
+}
+
+.slide.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition:
+    opacity 500ms var(--ease),
+    visibility 0s;
+}
+
+/* Revealed items come up from just under where they will be; hidden ones keep their place. */
+.step {
+  opacity: 0;
+  transform: translateY(0.3em);
+  transition:
+    opacity 450ms var(--ease),
+    transform 450ms var(--ease),
+    color 450ms var(--ease);
+}
+
+.step.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---- the cover: the picture, and the one word under it ---- */
+
+.slide--cover {
+  flex-direction: column;
+  gap: 5vh;
+}
+
+.cover__figure {
+  margin: 0;
+}
+
+.cover__figure img {
+  max-height: 58vh;
+  max-width: 70vw;
+  border-radius: 0.5em;
+}
+
+.cover__title {
+  margin: 0;
+  font-weight: normal;
+  font-size: 2.4em;
+  letter-spacing: 0.02em;
+}
+
+/* ---- pictures filling the page ---- */
+
+.slide--collage {
+  padding: 4vh 4vw;
+}
+
+.collage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1.2vw;
+  width: 100%;
+  height: 100%;
+}
+
+.collage img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+  border-radius: 0.4em;
+}
+
+/* ---- one sentence, and who said it ---- */
+
+.quote {
+  width: min(80vw, 34em);
+  margin: 0;
+}
+
+.quote__text {
+  margin: 0;
+  font-size: 1.5em;
+  line-height: 1.35;
+  font-style: italic;
+}
+
+.quote__text::before {
+  content: "“";
+  color: var(--highlight);
+}
+
+.quote__text::after {
+  content: "”";
+  color: var(--highlight);
+}
+
+.quote__by {
+  margin-top: 1.2em;
+  text-align: right;
+  color: var(--muted);
+}
+
+/* ---- a page of text, its items revealed one step at a time ---- */
+
+.sheet,
+.example,
+.gallery {
+  width: min(84vw, 64em);
+}
+
+.sheet__title {
+  margin: 0 0 1.4em;
+  font-size: 1.2em;
+  font-weight: normal;
+}
+
+.sheet__source {
+  margin: -1.2em 0 1.4em;
+  color: var(--muted);
+  font-size: 0.8em;
+}
+
+.sheet__items {
+  display: grid;
+  gap: 1.5em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: item;
+}
+
+.sheet__items li {
+  display: grid;
+  grid-template-columns: 1.7em 1fr;
+  counter-increment: item;
+}
+
+.sheet__items li::before {
+  content: counter(item) ".";
+}
+
+.sheet__items.is-plain li {
+  grid-template-columns: 1.2em 1fr;
+}
+
+.sheet__items.is-plain li::before {
+  content: "·";
+  color: var(--highlight);
+}
+
+/* A long list of short lines stands closer together, so all of it fits under the title. */
+.sheet__items.is-many {
+  gap: 0.45em;
+}
+
+/* ---- one principle: what it says, and beside it the thing happening ---- */
+
+.slide--principle {
+  padding: 8vh 4vw;
+}
+
+.principle {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 4vw;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.principle__count {
+  margin: 0 0 0.6em;
+  color: var(--highlight);
+  font-size: 0.7em;
+  letter-spacing: 0.12em;
+}
+
+.principle__name {
+  margin: 0 0 0.9em;
+  font-size: 1.35em;
+  font-weight: normal;
+  line-height: 1.2;
+}
+
+.principle__says {
+  margin: 0;
+  font-size: 0.78em;
+  line-height: 1.55;
+}
+
+.principle__canvas {
+  display: block;
+  width: 100%;
+  height: min(72vh, 46vw);
+}
+
+/* ---- what a property means, and the pictures that show it ---- */
+
+.example__says {
+  margin: -0.6em 0 1.2em;
+  font-size: 0.85em;
+}
+
+.example__pictures {
+  display: flex;
+  gap: 2vw;
+  justify-content: center;
+}
+
+.example__pictures img {
+  height: 38vh;
+  max-width: 40vw;
+  object-fit: cover;
+  border-radius: 0.4em;
+}
+
+.example__named {
+  margin: 1.2em 0 0;
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.label {
+  margin-right: 0.5em;
+  color: var(--highlight);
+  font-size: 0.75em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---- a few pictures, and the one they came out of ---- */
+
+.gallery__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3vw;
+  align-items: center;
+}
+
+.gallery__small {
+  display: grid;
+  gap: 2vh;
+}
+
+.gallery__small img {
+  height: 16vh;
+  width: 16vh;
+  object-fit: contain;
+}
+
+.gallery__large {
+  width: 100%;
+  max-height: 58vh;
+  object-fit: contain;
+  border-radius: 0.4em;
+}
+
+/* ---- what is round the slides ---- */
+
+.running-head {
+  position: fixed;
+  z-index: 2;
+  top: 2.4vh;
+  left: 2.6vw;
+  font-family: var(--serif);
+  font-size: clamp(14px, 1.2vw, 20px);
+  color: var(--muted);
+  pointer-events: none;
+  transition: opacity 500ms var(--ease);
+}
+
+.foot {
+  position: fixed;
+  z-index: 2;
+  left: 2.6vw;
+  right: 2.6vw;
+  bottom: 2vh;
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  font-size: 12px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* The cover says its own name, and the collage is only pictures: the running head stands down. */
+body.is-bare .running-head {
+  opacity: 0;
+}
+
+.counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.nav {
+  position: fixed;
+  z-index: 6;
+  inset: auto 0 2.5vh;
+  display: none;
+  justify-content: space-between;
+  padding: 0 2.5vw;
+  pointer-events: none;
+}
+
+.nav__go {
+  pointer-events: auto;
+  width: 2.6em;
+  height: 2.6em;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 10%);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav__go:active {
+  background: color-mix(in srgb, var(--highlight) 14%, var(--page));
+}
+
+/* A finger cannot press a key, so where there is no mouse the presses are on the page. */
+@media (pointer: coarse), (max-width: 860px) {
+  .nav {
+    display: flex;
+  }
+
+  .hint {
+    visibility: hidden;
+  }
+}
+
+/* ---- a phone: one column, and everything given the width it has ---- */
+
+@media (max-width: 860px) {
+  .slide {
+    align-items: flex-start;
+    padding: 9vh 16px 12vh;
+    overflow-y: auto;
+    font-size: 18px;
+  }
+
+  .slide--cover,
+  .slide--quote {
+    align-items: center;
+  }
+
+  .sheet,
+  .example,
+  .gallery {
+    width: 100%;
+  }
+
+  .collage {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, 1fr);
+  }
+
+  .principle {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .principle__canvas {
+    height: 52vh;
+  }
+
+  .example__pictures {
+    flex-direction: column;
+  }
+
+  .example__pictures img {
+    height: auto;
+    max-width: 100%;
+  }
+
+  .gallery__body {
+    grid-template-columns: 1fr;
+  }
+
+  .gallery__small {
+    grid-auto-flow: column;
+    justify-content: center;
+  }
+
+  .gallery__small img {
+    height: 22vw;
+    width: 22vw;
+  }
+}
+
+/* ---- a sandbox of our own, live, between the running head and the counter ---- */
+
+.slide--app {
+  padding: 6.5vh 2.6vw 5vh;
+}
+
+.app {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: var(--page);
+}
+
+@media (max-width: 860px) {
+  .slide--app {
+    padding: 6vh 0 0;
+    overflow: hidden;
+  }
+}

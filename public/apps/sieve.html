@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sieve: a prime number sandbox</title>
+<style>
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Regular.woff2) format("woff2");font-weight:400;font-style:normal}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Italic.woff2) format("woff2");font-weight:400;font-style:italic}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Bold.woff2) format("woff2");font-weight:700;font-style:normal}
+:root{
+  --paper:#FFFFFF; --panel:#FAFAFB; --field:#FFFFFF; --ink:#1B1D22; --ink-2:#4B5059; --ink-3:#9097A1;
+  --rule:#E3E5E9; --cell:#EEF0F2; --on-ink:#FFFFFF; --err:#D91A14; --focus:#F27305;
+  --c0:#F27305; --c1:#2F45C4; --c2:#0F8574; --c3:#C0364B; --c4:#7A3FB5; --c5:#2E7FB0;
+  --c6:#5B6475; --c7:#C2398F; --c8:#4A8A22; --c9:#8A5A2B;
+  --serif:"KaTeX_Main","Latin Modern Roman","Iowan Old Style",Georgia,serif;
+  --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans:ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--paper);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-columns:minmax(330px,420px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+.top{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;padding:4px 22px 14px;border-bottom:1px solid var(--rule)}
+.top h1{margin:0;font:400 30px/1.1 var(--serif)}
+.top p{margin:0;color:var(--ink-3);font:17px/1.4 var(--serif);max-width:70ch}
+
+.side{min-height:0;overflow:auto;background:var(--panel);border-right:1px solid var(--rule);padding:14px 18px 32px}
+.side h2{font:400 18px/1.3 var(--serif);margin:0}
+.side-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px}
+.insert{display:flex;gap:4px}
+.insert button{font:600 14px/1 var(--mono);min-width:30px;height:28px;padding:0 6px;border:1px solid var(--rule);background:var(--field);color:var(--ink);border-radius:6px;cursor:pointer}
+.insert button:hover{border-color:var(--ink-3)}
+
+.line{display:grid;grid-template-columns:20px minmax(0,1fr) 26px;gap:6px;padding:6px 0;border-bottom:1px solid var(--rule)}
+.swatch{width:16px;height:16px;margin-top:10px;border-radius:50%;border:2px solid var(--c,var(--ink-3));background:var(--c,transparent);padding:0;cursor:pointer}
+.swatch.off{background:transparent}
+.swatch.novis{visibility:hidden}
+.pop{position:absolute;z-index:20;width:236px;background:var(--field);border:1px solid var(--rule);border-radius:10px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.pop[hidden]{display:none}
+.pop-title{font-weight:700;font-size:14px;margin-bottom:8px}
+.pal{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.pal button{width:34px;height:34px;border-radius:50%;border:0;background:var(--c);cursor:pointer;padding:0;box-shadow:inset 0 0 0 2px transparent}
+.pal button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--field),0 0 0 4px var(--ink)}
+.custom{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:var(--ink-2);cursor:pointer}
+.custom input{width:34px;height:28px;padding:0;border:1px solid var(--rule);border-radius:6px;background:none;cursor:pointer}
+.pop-note{margin:8px 0 0;font-size:12px;color:var(--ink-3);line-height:1.4}
+.expr{display:block;width:100%;font:15px/1.4 var(--mono);color:var(--ink);background:transparent;border:1px solid transparent;border-radius:6px;padding:6px 8px}
+.expr:hover{border-color:var(--rule)}
+.expr:focus{outline:none;border-color:var(--focus);background:var(--field)}
+.out{padding:1px 9px 3px;font:13px/1.45 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
+.out .cnt{color:var(--ink);font-weight:600}
+.out .warn{font-family:var(--sans);font-size:13px;color:var(--ink-3);margin-top:3px}
+.out.err{font-family:var(--sans);font-size:14px;color:var(--err)}
+.out:empty{display:none}
+.sl{display:flex;align-items:center;gap:8px;padding:4px 8px}
+.sl[hidden]{display:none}
+.sl input[type=range]{flex:1;min-width:0;accent-color:var(--c0)}
+.sl input[type=number]{width:58px;font:13px var(--mono);padding:3px 4px;border:1px solid var(--rule);border-radius:5px;background:var(--field);color:var(--ink)}
+.del{width:26px;height:26px;margin-top:6px;border:0;background:transparent;color:var(--ink-3);font-size:18px;line-height:1;border-radius:6px;cursor:pointer}
+.del:hover{color:var(--ink);background:var(--cell)}
+
+.actions{display:flex;gap:8px;margin:12px 0 16px}
+.btn{font:14px/1 var(--sans);padding:9px 16px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;transition:background .2s,border-color .2s}
+.btn:hover{background:var(--c0);border-color:var(--c0)}
+.btn.quiet{background:transparent;color:var(--ink-2);border-color:var(--rule)}
+.btn.quiet:hover{background:transparent;border-color:var(--c0);color:var(--ink)}
+
+details.help{border-top:1px solid var(--rule);padding:12px 0}
+details.help summary{cursor:pointer;font:400 17px var(--serif)}
+.help dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px 14px;margin:12px 0 8px;font-size:14px}
+.help dt{font-family:var(--mono);font-size:13px;white-space:nowrap;padding-top:1px}
+.help dd{margin:0;color:var(--ink-2)}
+.help p{margin:8px 0 0;font-size:14px;color:var(--ink-2);max-width:52ch}
+
+.try{border-top:1px solid var(--rule);padding-top:14px}
+.try ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:16px}
+.try h3{margin:0;font:400 16px var(--serif)}
+.try p{margin:2px 0 6px;color:var(--ink-2);font-size:14px;max-width:52ch}
+.link{font:14px var(--sans);color:var(--c0);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+.stage{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0}
+.bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px 20px;padding:8px 20px 0}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule)}
+.tab{font:700 14px var(--sans);padding:8px 12px;background:none;border:0;border-bottom:2px solid transparent;color:var(--ink-2);cursor:pointer;margin-bottom:-1px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--c0)}
+.ctl{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--ink-2);padding-bottom:6px}
+.ctl input[type=range]{width:160px;accent-color:var(--c0)}
+.ctl output{font:600 14px var(--mono);color:var(--ink);min-width:8ch}
+.vctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 20px;padding:10px 20px 0;min-height:42px}
+.vctl .ctl{padding-bottom:0}
+.vctl .cap{color:var(--ink-3);font-size:14px}
+.zoom{display:inline-flex;gap:4px}
+.zoom button{font:600 16px/1 var(--mono);width:32px;height:30px;border:1px solid var(--rule);background:var(--field);color:var(--ink);border-radius:6px;cursor:pointer}
+.zoom button:hover{border-color:var(--ink-3)}
+.chk{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink-2);cursor:pointer}
+.chk input{accent-color:var(--c0)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 20px 0;font:13px var(--mono);color:var(--ink-2);min-height:28px}
+.legend span,.tm span{display:inline-flex;align-items:center;gap:6px}
+.legend i,.tm i{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.wrap{flex:1;min-height:0;overflow:hidden;padding:12px 20px 20px}
+.wrap.scroll{overflow:auto;scrollbar-gutter:stable}
+canvas{display:block;margin:0 auto;touch-action:pan-y}
+canvas.pan{cursor:grab;touch-action:none}
+canvas.pan.grabbing{cursor:grabbing}
+.zoom button.home{width:auto;padding:0 10px;font:700 13px var(--sans)}
+.tip{position:absolute;z-index:5;pointer-events:none;background:var(--field);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.14);max-width:260px}
+.tip[hidden]{display:none}
+.tip .tn{font:700 16px var(--mono)}
+.tip .tf{font-family:var(--mono);color:var(--ink-2)}
+.tip .tm{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:5px;font-family:var(--mono)}
+.tip .row{font-family:var(--mono);display:flex;justify-content:space-between;gap:12px}
+
+@media (max-width:860px){
+  .app{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
+  .stage{order:1;height:68vh;border-bottom:1px solid var(--rule)}
+  .side{order:2;border-right:0;overflow:visible}
+  .bar,.vctl,.legend{padding-left:14px;padding-right:14px}
+  .wrap{padding:10px 14px 14px}
+  .ctl input[type=range]{width:120px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Sieve</h1>
+    <p>A sandbox for prime numbers. Write sets of numbers, turn plain numbers into sliders, and watch where the primes fall.</p>
+  </header>
+
+  <aside class="side">
+    <div class="side-head">
+      <h2>Sets</h2>
+      <div class="insert" aria-label="Insert a symbol">
+        <button type="button" data-ins="∩" title="Intersection: in both">∩</button>
+        <button type="button" data-ins="∪" title="Union: in either">∪</button>
+        <button type="button" data-ins="\" title="Difference: in the first, not the second">\</button>
+        <button type="button" data-ins="{..}" title="Range">{..}</button>
+      </div>
+    </div>
+    <div id="lines"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="add">Add line</button>
+      <button type="button" class="btn quiet" id="reset">Reset</button>
+    </div>
+
+    <details class="help">
+      <summary>How expressions work</summary>
+      <dl>
+        <dt>P, N</dt><dd>The primes, and the natural numbers 1, 2, 3, … up to the limit.</dd>
+        <dt>A ∩ B</dt><dd>Numbers in both sets. You can also type &amp;.</dd>
+        <dt>A ∪ B</dt><dd>Numbers in either set. You can also type |.</dd>
+        <dt>A \ B</dt><dd>Numbers in A that aren't in B.</dd>
+        <dt>A + 2, 3A</dt><dd>Shift or stretch every number.</dd>
+        <dt>A / 2</dt><dd>Halve every number, keeping only exact results.</dd>
+        <dt>2^A, A^2</dt><dd>Powers of every number.</dd>
+        <dt>A + B, A * B</dt><dd>Every possible sum, or every possible product.</dd>
+        <dt>12 / N</dt><dd>Every exact quotient, so the divisors of 12.</dd>
+        <dt>{2..}, {1..50}</dt><dd>Ranges. Leave the end off to run up to the limit.</dd>
+        <dt>{3, 5, 7}</dt><dd>A list of numbers.</dd>
+        <dt>{n^2+1 : n in N}</dt><dd>Apply a formula to every number in a set.</dd>
+        <dt>{n : n^2+1 in P}</dt><dd>Keep the numbers that pass a test.</dd>
+        <dt>{p in P : p % 4 = 1}</dt><dd>Test only the numbers in a set.</dd>
+        <dt>and, or, not</dt><dd>Combine tests. Compare with = ≠ &lt; &gt; ≤ ≥, or write n not in A.</dd>
+        <dt>k = 3</dt><dd>A plain number becomes a slider. Use k in any line.</dd>
+        <dt>Colors</dt><dd>Click a set's dot to show or hide it. Right-click it, or press and hold, to change its color.</dd>
+        <dt>count(A)</dt><dd>How many numbers A has. Also min, max, gcd, floor, sqrt.</dd>
+      </dl>
+      <p>Every result keeps only whole numbers from 0 to the limit, so every result is a set you can use again in another line.</p>
+    </details>
+
+    <section class="try">
+      <h2>Things to try</h2>
+      <ul id="challenges"></ul>
+    </section>
+  </aside>
+
+  <main class="stage" id="stage">
+    <div class="bar">
+      <div class="tabs" role="tablist" aria-label="View">
+        <button type="button" class="tab" role="tab" data-view="grid">Grid</button>
+        <button type="button" class="tab" role="tab" data-view="spiral">Spiral</button>
+        <button type="button" class="tab" role="tab" data-view="polar">Polar</button>
+        <button type="button" class="tab" role="tab" data-view="count">Count</button>
+      </div>
+      <label class="ctl">Numbers up to <input type="range" id="nr" min="0" max="12" step="1"><output id="no"></output></label>
+    </div>
+    <div class="vctl" id="vctl"></div>
+    <div class="legend" id="legend"></div>
+    <div class="wrap" id="wrap"><canvas id="cv"></canvas></div>
+    <div class="tip" id="tip" hidden></div>
+  </main>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+const NSTEPS=[100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000];
+const COLORS=6;
+const RESERVED=new Set(['N','P','in','and','or','not']);
+const KEYWORDS=new Set(['and','or','not']);
+const CMP=new Set(['=','!=','<','<=','>','>=']);
+const KEY='sieve-sandbox-v2';
+const MONO='ui-monospace, Menlo, Consolas, monospace';
+const SANS='ui-sans-serif, system-ui, "Segoe UI", sans-serif';
+const $=s=>document.querySelector(s);
+const fmt=n=>n.toLocaleString('en-US');
+const fmtNum=v=>Number.isInteger(v)?fmt(v):(Math.abs(v)<1e15?String(+v.toPrecision(8)):String(v));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------------- Bitsets over 0..n ---------------- */
+function popcnt(x){x=x-((x>>>1)&0x55555555);x=(x&0x33333333)+((x>>>2)&0x33333333);return Math.imul((x+(x>>>4))&0x0F0F0F0F,0x01010101)>>>24;}
+class Bits{
+  constructor(n){this.n=n;this.w=new Uint32Array((n>>>5)+1);this._e=null;}
+  set(i){this.w[i>>>5]|=(1<<(i&31));}
+  has(i){return i>=0&&i<=this.n&&((this.w[i>>>5]>>>(i&31))&1)===1;}
+  trim(){const k=this.n&31;if(k!==31){this.w[this.n>>>5]&=((1<<(k+1))-1)>>>0;}return this;}
+  elems(){
+    if(this._e) return this._e;
+    const w=this.w;let c=0;for(let i=0;i<w.length;i++) if(w[i]) c+=popcnt(w[i]);
+    const out=new Int32Array(c);let k=0;
+    for(let i=0;i<w.length;i++){let x=w[i];while(x){const t=x&-x;out[k++]=(i<<5)+(31-Math.clz32(t));x^=t;}}
+    return this._e=out;
+  }
+  get count(){return this.elems().length;}
+  and(B){const r=new Bits(this.n);for(let i=0;i<r.w.length;i++) r.w[i]=this.w[i]&B.w[i];return r;}
+  or(B){const r=new Bits(this.n);for(let i=0;i<r.w.length;i++) r.w[i]=this.w[i]|B.w[i];return r;}
+  andNot(B){const r=new Bits(this.n);for(let i=0;i<r.w.length;i++) r.w[i]=this.w[i]&~B.w[i];return r;}
+  orWith(B){for(let i=0;i<this.w.length;i++) this.w[i]|=B.w[i];return this;}
+}
+function orShiftUp(dst,src,s){
+  const W=dst.w.length,ws=s>>>5,bs=s&31,d=dst.w,a=src.w;
+  if(bs===0){for(let i=0;i+ws<W;i++) d[i+ws]|=a[i];}
+  else{for(let i=0;i+ws<W;i++) d[i+ws]|=(a[i]<<bs)|(i>0?(a[i-1]>>>(32-bs)):0);}
+}
+function orShiftDown(dst,src,s){
+  const W=dst.w.length,ws=s>>>5,bs=s&31,d=dst.w,a=src.w;
+  if(bs===0){for(let i=0;i+ws<W;i++) d[i]|=a[i+ws];}
+  else{for(let i=0;i+ws<W;i++) d[i]|=(a[i+ws]>>>bs)|(i+ws+1<W?(a[i+ws+1]<<(32-bs)):0);}
+}
+function fft(re,im,inv){
+  const n=re.length;
+  for(let i=1,j=0;i<n;i++){let bit=n>>1;for(;j&bit;bit>>=1) j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t;}}
+  for(let len=2;len<=n;len<<=1){
+    const ang=2*Math.PI/len*(inv?-1:1),wr=Math.cos(ang),wi=Math.sin(ang),h=len>>1;
+    for(let i=0;i<n;i+=len){let cr=1,ci=0;for(let k=0;k<h;k++){const a=i+k,b=a+h;const xr=re[b]*cr-im[b]*ci,xi=re[b]*ci+im[b]*cr;re[b]=re[a]-xr;im[b]=im[a]-xi;re[a]+=xr;im[a]+=xi;const t=cr*wr-ci*wi;ci=cr*wi+ci*wr;cr=t;}}
+  }
+  if(inv){for(let i=0;i<n;i++){re[i]/=n;im[i]/=n;}}
+}
+function convolve(A,B,reverseB){
+  const N=A.n;let m=1;while(m<2*(N+1)) m<<=1;
+  const ar=new Float64Array(m),ai=new Float64Array(m),br=new Float64Array(m),bi=new Float64Array(m);
+  for(const x of A.elems()) ar[x]=1;
+  for(const y of B.elems()) br[reverseB?N-y:y]=1;
+  fft(ar,ai,false);fft(br,bi,false);
+  for(let i=0;i<m;i++){const r=ar[i]*br[i]-ai[i]*bi[i],q=ar[i]*bi[i]+ai[i]*br[i];ar[i]=r;ai[i]=q;}
+  fft(ar,ai,true);return ar;
+}
+function sumset(A,B){
+  const N=A.n,r=new Bits(N);
+  const [s,b]=A.count<=B.count?[A,B]:[B,A];
+  if(s.count*r.w.length<3e7){for(const x of s.elems()) orShiftUp(r,b,x);return r.trim();}
+  const c=convolve(A,B,false);for(let k=0;k<=N;k++) if(c[k]>0.5) r.set(k);return r;
+}
+function diffset(A,B){
+  const N=A.n,r=new Bits(N);
+  if(B.count*r.w.length<3e7){for(const y of B.elems()) orShiftDown(r,A,y);return r.trim();}
+  const c=convolve(A,B,true);for(let d=0;d<=N;d++) if(c[d+N]>0.5) r.set(d);return r;
+}
+function prodset(A,B){
+  const N=A.n,r=new Bits(N),ea=A.elems(),eb=B.elems();
+  for(let i=0;i<ea.length;i++){const a=ea[i];if(a===0){if(eb.length) r.set(0);continue;}for(let j=0;j<eb.length;j++){const p=a*eb[j];if(p>N) break;r.set(p);}}
+  return r;
+}
+function setMap(B,f){
+  const N=B.n,r=new Bits(N),e=B.elems();
+  for(let i=0;i<e.length;i++){const v=f(e[i]);if(Number.isInteger(v)&&v>=0&&v<=N) r.set(v);}
+  return r;
+}
+let allCache=null,primeCache=null;
+function allSet(N){if(allCache&&allCache.n===N) return allCache;const b=new Bits(N);b.w.fill(0xFFFFFFFF);b.w[0]&=~1;return allCache=b.trim();}
+function primeSet(N){
+  if(primeCache&&primeCache.n===N) return primeCache;
+  const comp=new Uint8Array(N+1),b=new Bits(N);
+  for(let i=2;i<=N;i++){if(!comp[i]){b.set(i);for(let j=i*i;j<=N;j+=i) comp[j]=1;}}
+  return primeCache=b;
+}
+function single(v,N){const b=new Bits(N);if(Number.isInteger(v)&&v>=0&&v<=N) b.set(v);return b;}
+
+/* ---------------- Language ---------------- */
+function lex(s){
+  const t=[];let i=0;
+  const sym={'+':'+','-':'-','−':'-','*':'*','·':'*','×':'*','/':'/','%':'%','^':'^','\\':'\\','∖':'\\','∩':'&','&':'&','∪':'|','|':'|','(':'(',')':')','{':'{','}':'}',',':',',':':':','=':'=','∈':'in','∉':'notin','<':'<','>':'>','≤':'<=','≥':'>=','≠':'!='};
+  while(i<s.length){
+    const c=s[i];
+    if(/\s/.test(c)){i++;continue;}
+    if(/[0-9]/.test(c)){let j=i;while(j<s.length&&/[0-9]/.test(s[j])) j++;if(s[j]==='.'&&/[0-9]/.test(s[j+1]||'')){j++;while(j<s.length&&/[0-9]/.test(s[j])) j++;}t.push({t:'num',v:parseFloat(s.slice(i,j))});i=j;continue;}
+    if(/[A-Za-z_]/.test(c)){let j=i;while(j<s.length&&/[A-Za-z0-9_']/.test(s[j])) j++;const w=s.slice(i,j);t.push(w==='in'?{t:'in'}:{t:'id',v:w});i=j;continue;}
+    if(s.startsWith('..',i)){t.push({t:'..'});i+=2;continue;}
+    const two=s.slice(i,i+2);
+    if(two==='<='||two==='>='||two==='!='||two==='=='){t.push({t:two==='=='?'=':two});i+=2;continue;}
+    if(sym[c]){t.push({t:sym[c]});i++;continue;}
+    throw new Error(`The symbol "${c}" isn't part of the language.`);
+  }
+  t.push({t:'eof'});return t;
+}
+function tokName(k){return k.t==='num'?String(k.v):k.t==='id'?k.v:k.t==='eof'?'the end':k.t==='&'?'"∩"':k.t==='|'?'"∪"':`"${k.t}"`;}
+function parseExpr(src){
+  const T=lex(src);let i=0;
+  const peek=()=>T[i],next=()=>T[i++];
+  const expect=(t,msg)=>{if(peek().t!==t) throw new Error(msg);return next();};
+  function union(){let l=inter();while(peek().t==='|'||peek().t==='\\'){const op=next().t;l={k:'bin',op,l,r:inter()};}return l;}
+  function inter(){let l=add();while(peek().t==='&'){next();l={k:'bin',op:'&',l,r:add()};}return l;}
+  function add(){let l=mul();while(peek().t==='+'||peek().t==='-'){const op=next().t;l={k:'bin',op,l,r:mul()};}return l;}
+  function mul(){let l=unary();while(peek().t==='*'||peek().t==='/'||peek().t==='%'){const op=next().t;l={k:'bin',op,l,r:unary()};}return l;}
+  function unary(){if(peek().t==='-'){next();return {k:'neg',e:unary()};}return pow();}
+  const isKw=w=>peek().t==='id'&&peek().v===w;
+  function condList(){const out=[cond()];while(peek().t===','){next();out.push(cond());}return out;}
+  function cond(){let l=andC();while(isKw('or')){next();l={k:'or',l,r:andC()};}return l;}
+  function andC(){let l=notC();while(isKw('and')){next();l={k:'and',l,r:notC()};}return l;}
+  function notC(){
+    if(isKw('not')){next();return {k:'not',e:notC()};}
+    if(peek().t==='('){
+      const save=i;
+      try{next();const c=cond();if(peek().t===')'){next();if(!CMP.has(peek().t)&&peek().t!=='in'&&peek().t!=='notin') return c;}}catch(e){}
+      i=save;
+    }
+    return test();
+  }
+  function test(){
+    const l=union(),t=peek();
+    if(t.t==='in'){next();return {k:'in',l,r:union(),neg:false};}
+    if(t.t==='notin'){next();return {k:'in',l,r:union(),neg:true};}
+    if(isKw('not')){const s=i;next();if(peek().t==='in'){next();return {k:'in',l,r:union(),neg:true};}i=s;}
+    if(CMP.has(t.t)){next();return {k:'cmp',op:t.t,l,r:union()};}
+    throw new Error((t.t==='}'||t.t===','||t.t==='eof'||t.t===')')?'After ":" write a test, like n^2 + 1 in P or n % 4 = 1.':`Unexpected ${tokName(t)} here.`);
+  }
+  function pow(){const b=primary();if(peek().t==='^'){next();return {k:'bin',op:'^',l:b,r:unary()};}return b;}
+  function primary(){
+    const tk=next();
+    if(tk.t==='num'){const n={k:'num',v:tk.v};const nx=peek().t;if((nx==='id'&&!KEYWORDS.has(peek().v))||nx==='(') return {k:'bin',op:'*',l:n,r:pow()};return n;}
+    if(tk.t==='id'){
+      if(peek().t==='('){next();const args=[];if(peek().t!==')'){args.push(union());while(peek().t===','){next();args.push(union());}}expect(')','A ")" is missing.');return {k:'call',f:tk.v,args};}
+      return {k:'var',name:tk.v};
+    }
+    if(tk.t==='('){const e=union();expect(')','A ")" is missing.');return e;}
+    if(tk.t==='{'){
+      if(peek().t==='}'){next();return {k:'list',items:[]};}
+      if(peek().t==='..'){next();const hi=union();expect('}','A "}" is missing.');return {k:'range',lo:{k:'num',v:0},hi};}
+      const first=union();
+      if(peek().t==='..'){next();if(peek().t==='}'){next();return {k:'range',lo:first,hi:null};}const hi=union();expect('}','A "}" is missing.');return {k:'range',lo:first,hi};}
+      if(peek().t==='in'&&first.k==='var'){
+        next();const set=union();let conds=[];
+        if(peek().t===':'){next();conds=condList();}
+        expect('}','A "}" is missing.');
+        return {k:'build',e:first,v:first.name,set,conds};
+      }
+      if(peek().t===':'){
+        next();const items=condList();expect('}','A "}" is missing.');
+        if(items[0].k==='in'&&!items[0].neg&&items[0].l.k==='var'){const g=items.shift();return {k:'build',e:first,v:g.l.name,set:g.r,conds:items};}
+        if(first.k!=='var') throw new Error('Say where the variable comes from, like {n^2 : n in N}.');
+        return {k:'build',e:first,v:first.name,set:{k:'var',name:'N'},conds:items};
+      }
+      const items=[first];while(peek().t===','){next();items.push(union());}expect('}','A "}" is missing.');return {k:'list',items};
+    }
+    if(tk.t==='eof') throw new Error('This expression ends too early.');
+    throw new Error(`Unexpected ${tokName(tk)} here.`);
+  }
+  const e=union();
+  if(peek().t!=='eof') throw new Error(peek().t==='='?'Use one "=" per line, right after a name.':`Unexpected ${tokName(peek())} here.`);
+  return e;
+}
+function parseLine(text){
+  const s=text.trim();if(!s) return {empty:true};
+  const m=s.match(/^([A-Za-z_][A-Za-z0-9_']*)\s*(:=|=)([\s\S]*)$/);
+  if(m){if(!m[3].trim()) throw new Error(`Write something after "=" to define ${m[1]}.`);return {name:m[1],ast:parseExpr(m[3])};}
+  return {ast:parseExpr(s)};
+}
+const isLiteral=a=>a.k==='num'||(a.k==='neg'&&a.e.k==='num');
+
+/* ---------------- State ---------------- */
+function mkLine(s,text){return {id:s.nextId++,text,hidden:false,color:null,min:0,max:20};}
+function freshState(){
+  const s={lines:[],nIdx:6,view:'grid',w:10,sp:{vx:0,vy:0,cs:null},pv:{ox:0,oy:0,span:null},showRef:true,showDiff:false,nextId:1,nextColor:0};
+  ['P','k = 2','twins = P ∩ (P - k)'].forEach(t=>s.lines.push(mkLine(s,t)));
+  return s;
+}
+function load(){
+  try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(s&&Array.isArray(s.lines)&&s.lines.length) return Object.assign(freshState(),s);}catch(e){}
+  return freshState();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+let state=load();
+const newLine=t=>mkLine(state,t);
+const curN=()=>NSTEPS[state.nIdx];
+
+/* ---------------- Evaluation ---------------- */
+let results=new Map();
+function evaluateAll(){
+  const N=curN();
+  const parsed=state.lines.map(l=>{try{return parseLine(l.text);}catch(e){return {error:e.message};}});
+  const defs=new Map();
+  parsed.forEach((p,i)=>{
+    if(!p.name) return;
+    if(RESERVED.has(p.name)){p.error=`${p.name} is built in. Pick another name.`;return;}
+    if(defs.has(p.name)){p.error=`${p.name} is already defined on an earlier line.`;return;}
+    defs.set(p.name,i);
+  });
+  const memo=new Map(),visiting=new Set(),overflow=new Set(),stack=[];
+  const mkNum=v=>({t:'num',v}),mkSet=b=>({t:'set',b});
+  const int=(v,what)=>{if(!Number.isInteger(v)) throw new Error(`${what} needs a whole number, not ${fmtNum(v)}.`);return v;};
+
+  function lookup(name,scope){
+    if(scope&&Object.prototype.hasOwnProperty.call(scope,name)) return scope[name];
+    if(name==='N') return mkSet(allSet(N));
+    if(name==='P') return mkSet(primeSet(N));
+    if(!defs.has(name)) throw new Error(`${name} isn't defined yet. Add a line like "${name} = 3".`);
+    const idx=defs.get(name);
+    if(visiting.has(idx)) throw new Error(`${name} refers back to itself.`);
+    try{return evalLine(idx);}catch(e){throw new Error(`${name} has an error, so this line can't be worked out.`);}
+  }
+  function evalLine(idx){
+    if(memo.has(idx)){const m=memo.get(idx);if(m.err!==undefined) throw new Error(m.err);return m.val;}
+    visiting.add(idx);stack.push(idx);
+    const p=parsed[idx];
+    try{if(p.error) throw new Error(p.error);const val=ev(p.ast,null);memo.set(idx,{val});return val;}
+    catch(e){memo.set(idx,{err:e.message});throw e;}
+    finally{visiting.delete(idx);stack.pop();}
+  }
+  function mentions(node,v){
+    if(!node||typeof node!=='object') return false;
+    if(node.k==='var') return node.name===v;
+    for(const key in node){const c=node[key];if(Array.isArray(c)){if(c.some(x=>mentions(x,v))) return true;}else if(c&&typeof c==='object'&&mentions(c,v)) return true;}
+    return false;
+  }
+  // A test that reaches past the limit can't be answered. It counts as false, but we note it
+  // when answering it the other way would have changed the result.
+  let sawUnknown=false,unknownAs=false;
+  function evCond(c,E){
+    switch(c.k){
+      case 'and':return evCond(c.l,E)&&evCond(c.r,E);
+      case 'or':return evCond(c.l,E)||evCond(c.r,E);
+      case 'not':return !evCond(c.e,E);
+      case 'in':{
+        const l=E(c.l),r=E(c.r);
+        if(l.t!=='num') throw new Error('The left side of "in" should be a number.');
+        let res;
+        if(r.t==='num') res=l.v===r.v;
+        else if(Number.isInteger(l.v)&&l.v>N){sawUnknown=true;res=unknownAs;}
+        else res=r.b.has(l.v);
+        return c.neg?!res:res;
+      }
+      case 'cmp':{
+        const l=E(c.l),r=E(c.r);
+        if(l.t!=='num'||r.t!=='num') throw new Error('Comparisons need a number on each side.');
+        const a=l.v,b=r.v;
+        switch(c.op){case '=':return a===b;case '!=':return a!==b;case '<':return a<b;case '<=':return a<=b;case '>':return a>b;case '>=':return a>=b;}
+      }
+    }
+    throw new Error('Unknown test.');
+  }
+  function binop(op,x,y){
+    const S=x.t==='set',T=y.t==='set';
+    if(op==='&'||op==='|'||op==='\\'){
+      const A=S?x.b:single(x.v,N),B=T?y.b:single(y.v,N);
+      return mkSet(op==='&'?A.and(B):op==='|'?A.or(B):A.andNot(B));
+    }
+    if(!S&&!T){
+      const a=x.v,b=y.v;
+      switch(op){
+        case '+':return mkNum(a+b);case '-':return mkNum(a-b);case '*':return mkNum(a*b);
+        case '/':if(b===0) throw new Error('Division by zero.');return mkNum(a/b);
+        case '%':if(b===0) throw new Error('Division by zero.');return mkNum(((a%b)+b)%b);
+        case '^':return mkNum(Math.pow(a,b));
+      }
+    }
+    switch(op){
+      case '+':{if(S&&T) return mkSet(sumset(x.b,y.b));const k=int(S?y.v:x.v,'Shifting');return mkSet(setMap(S?x.b:y.b,v=>v+k));}
+      case '-':{if(S&&T) return mkSet(diffset(x.b,y.b));if(S){const k=int(y.v,'Shifting');return mkSet(setMap(x.b,v=>v-k));}const k=int(x.v,'Reflecting');return mkSet(setMap(y.b,v=>k-v));}
+      case '*':{if(S&&T) return mkSet(prodset(x.b,y.b));const k=int(S?y.v:x.v,'Stretching');return mkSet(setMap(S?x.b:y.b,v=>v*k));}
+      case '/':{
+        if(S&&!T){const k=int(y.v,'Dividing');if(k===0) throw new Error('Division by zero.');return mkSet(setMap(x.b,v=>v%k===0?v/k:NaN));}
+        if(!S&&T){const k=int(x.v,'Dividing');return mkSet(setMap(y.b,v=>v!==0&&k%v===0?k/v:NaN));}
+        throw new Error('Divide a set by a number, like P / 2.');
+      }
+      case '%':{if(S&&!T){const m=int(y.v,'Remainders');if(m===0) throw new Error('Division by zero.');return mkSet(setMap(x.b,v=>((v%m)+m)%m));}throw new Error('Put a number after %, like P % 6.');}
+      case '^':{
+        if(!S&&T){const k=x.v;return mkSet(setMap(y.b,v=>Math.pow(k,v)));}
+        if(S&&!T){const k=y.v;return mkSet(setMap(x.b,v=>Math.pow(v,k)));}
+        throw new Error('Powers need a number on one side, like 2^P or A^2.');
+      }
+    }
+    throw new Error('Unknown operation.');
+  }
+  function ev(a,scope){
+    switch(a.k){
+      case 'num':return mkNum(a.v);
+      case 'var':return lookup(a.name,scope);
+      case 'neg':{const x=ev(a.e,scope);return x.t==='num'?mkNum(-x.v):mkSet(setMap(x.b,v=>-v));}
+      case 'bin':return binop(a.op,ev(a.l,scope),ev(a.r,scope));
+      case 'range':{
+        const lo=ev(a.lo,scope),hi=a.hi?ev(a.hi,scope):mkNum(N);
+        if(lo.t!=='num'||hi.t!=='num') throw new Error('A range needs numbers at both ends, like {2..50}.');
+        const b=new Bits(N),s=Math.max(0,Math.ceil(lo.v)),e=Math.min(N,Math.floor(hi.v));
+        for(let x=s;x<=e;x++) b.set(x);return mkSet(b);
+      }
+      case 'list':{const b=new Bits(N);for(const it of a.items){const v=ev(it,scope);if(v.t==='num'){if(Number.isInteger(v.v)&&v.v>=0&&v.v<=N) b.set(v.v);}else b.orWith(v.b);}return mkSet(b);}
+      case 'build':{
+        const src=ev(a.set,scope);if(src.t!=='set') throw new Error('After "in" put a set, like N or P.');
+        const b=new Bits(N),sc=Object.assign({},scope||{}),e=src.b.elems(),conds=a.conds||[];
+        // Parts that don't use the variable are worked out once, not once per number.
+        const cache=new Map();
+        const E=node=>{if(mentions(node,a.v)) return ev(node,sc);if(!cache.has(node)) cache.set(node,ev(node,scope));return cache.get(node);};
+        const identity=a.e.k==='var'&&a.e.name===a.v;
+        outer:for(let i=0;i<e.length;i++){
+          sc[a.v]=mkNum(e[i]);
+          sawUnknown=false;
+          const pass=conds.every(c=>evCond(c,E));
+          if(sawUnknown){unknownAs=true;const alt=conds.every(c=>evCond(c,E));unknownAs=false;if(alt!==pass&&stack.length) overflow.add(stack[stack.length-1]);}
+          if(!pass) continue outer;
+          if(identity){b.set(e[i]);continue;}
+          const r=E(a.e);if(r.t!=='num') throw new Error('The formula before ":" should give one number.');
+          const v=r.v;if(Number.isInteger(v)&&v>=0&&v<=N) b.set(v);
+        }
+        return mkSet(b);
+      }
+      case 'call':{
+        const f=a.f,args=a.args.map(z=>ev(z,scope));
+        const nums=()=>args.map(v=>{if(v.t!=='num') throw new Error(`${f} needs numbers here.`);return v.v;});
+        switch(f){
+          case 'count':if(args.length!==1||args[0].t!=='set') throw new Error('count needs one set, like count(P).');return mkNum(args[0].b.count);
+          case 'min':case 'max':{
+            if(args.length===1&&args[0].t==='set'){const e=args[0].b.elems();if(!e.length) throw new Error(`The ${f} of an empty set doesn't exist.`);return mkNum(f==='min'?e[0]:e[e.length-1]);}
+            return mkNum(Math[f](...nums()));
+          }
+          case 'floor':case 'ceil':case 'abs':case 'sqrt':{const n=nums();if(n.length!==1) throw new Error(`${f} takes one number.`);return mkNum(Math[f](n[0]));}
+          case 'gcd':{const n=nums();if(n.length!==2) throw new Error('gcd takes two numbers.');let p=Math.abs(n[0]),q=Math.abs(n[1]);while(q){[p,q]=[q,p%q];}return mkNum(p);}
+          default:throw new Error(`There's no function called ${f}.`);
+        }
+      }
+    }
+    throw new Error('Unknown expression.');
+  }
+
+  results=new Map();
+  parsed.forEach((p,i)=>{
+    const line=state.lines[i];let r;
+    if(p.empty) r={kind:'blank'};
+    else{
+      try{
+        const v=evalLine(i);
+        if(v.t==='set') r={kind:'set',b:v.b,name:p.name||null,overflow:overflow.has(i)};
+        else r=(p.name&&isLiteral(p.ast)&&Number.isInteger(v.v))?{kind:'slider',value:v.v,name:p.name}:{kind:'num',value:v.v,name:p.name||null};
+      }catch(e){r={kind:'error',msg:e.message};}
+    }
+    if(r.kind==='set'&&line.color==null) line.color=(state.nextColor++)%COLORS;
+    r.label=p.name||line.text.trim();
+    results.set(line.id,r);
+  });
+}
+
+/* ---------------- Side panel ---------------- */
+const linesEl=$('#lines');let lastInput=null;
+function renderLines(focusId){
+  linesEl.textContent='';
+  state.lines.forEach(l=>linesEl.appendChild(buildRow(l)));
+  updateOutputs();
+  if(focusId!=null){const inp=linesEl.querySelector(`[data-id="${focusId}"] .expr`);if(inp){inp.focus();const L=inp.value.length;inp.setSelectionRange(L,L);}}
+}
+function buildRow(line){
+  const row=document.createElement('div');row.className='line';row.dataset.id=line.id;
+  row.innerHTML=`<button class="swatch" type="button"></button><div class="body"><input class="expr" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Expression"><div class="out" aria-live="polite"></div><div class="sl" hidden><input type="number" class="mn" aria-label="Slider minimum"><input type="range" class="rg" step="1" aria-label="Slider"><input type="number" class="mx" aria-label="Slider maximum"></div></div><button class="del" type="button" aria-label="Delete line">×</button>`;
+  const inp=row.querySelector('.expr');inp.value=line.text;
+  inp.addEventListener('input',()=>{line.text=inp.value;schedule();});
+  inp.addEventListener('focus',()=>{lastInput=inp;});
+  inp.addEventListener('keydown',e=>{
+    const i=state.lines.indexOf(line);
+    if(e.key==='Enter'){e.preventDefault();const nl=newLine('');state.lines.splice(i+1,0,nl);run();renderLines(nl.id);}
+    else if(e.key==='Backspace'&&inp.value===''&&state.lines.length>1){e.preventDefault();state.lines.splice(i,1);const prev=state.lines[Math.max(0,i-1)];run();renderLines(prev.id);}
+    else if(e.key==='ArrowUp'||e.key==='ArrowDown'){const j=i+(e.key==='ArrowUp'?-1:1);if(j>=0&&j<state.lines.length){e.preventDefault();linesEl.querySelector(`[data-id="${state.lines[j].id}"] .expr`).focus();}}
+  });
+  const swb=row.querySelector('.swatch');let hold=null,held=false;
+  swb.title='Click to show or hide. Right-click or press and hold to change the color.';
+  swb.addEventListener('pointerdown',e=>{if(e.button!==0) return;held=false;clearTimeout(hold);hold=setTimeout(()=>{held=true;openPalette(line,swb);},450);});
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>swb.addEventListener(ev,()=>clearTimeout(hold)));
+  swb.addEventListener('contextmenu',e=>{e.preventDefault();clearTimeout(hold);openPalette(line,swb);});
+  swb.addEventListener('click',e=>{if(held){held=false;e.preventDefault();return;}line.hidden=!line.hidden;updateOutputs();renderLegend();draw();save();});
+  row.querySelector('.del').addEventListener('click',()=>{const i=state.lines.indexOf(line);state.lines.splice(i,1);if(!state.lines.length) state.lines.push(newLine(''));run();renderLines();});
+  const rg=row.querySelector('.rg'),mn=row.querySelector('.mn'),mx=row.querySelector('.mx');
+  rg.addEventListener('input',()=>{const r=results.get(line.id);if(!r||!r.name) return;line.text=`${r.name} = ${rg.value}`;inp.value=line.text;runSoon();});
+  mn.addEventListener('change',()=>{const v=parseInt(mn.value,10);if(Number.isFinite(v)) line.min=Math.min(v,line.max-1);updateOutputs();save();});
+  mx.addEventListener('change',()=>{const v=parseInt(mx.value,10);if(Number.isFinite(v)) line.max=Math.max(v,line.min+1);updateOutputs();save();});
+  return row;
+}
+function updateOutputs(){
+  const N=curN();
+  state.lines.forEach(line=>{
+    const row=linesEl.querySelector(`[data-id="${line.id}"]`);if(!row) return;
+    const r=results.get(line.id)||{kind:'blank'};
+    const sw=row.querySelector('.swatch'),out=row.querySelector('.out'),sl=row.querySelector('.sl');
+    out.className='out';
+    if(r.kind==='set'){
+      sw.classList.remove('novis');sw.style.setProperty('--c',cssColor(line.color));sw.classList.toggle('off',!!line.hidden);
+      sw.setAttribute('aria-label',line.hidden?'Show this set on the canvas':'Hide this set from the canvas');sw.setAttribute('aria-pressed',String(!line.hidden));
+      const e=r.b.elems();
+      if(!e.length) out.innerHTML=`<span class="cnt">Empty.</span> No numbers from 0 to ${fmt(N)}.`;
+      else out.innerHTML=`<span class="cnt">${fmt(e.length)} ${e.length===1?'number':'numbers'}</span>&ensp;${Array.from(e.subarray(0,8)).join(', ')}${e.length>8?', …':''}`;
+      if(r.overflow) out.innerHTML+=`<div class="warn">Some tests reached past ${fmt(N)}, where sets have no numbers, so they came out false. Raise the limit to test further.</div>`;
+    }else{
+      sw.classList.add('novis');
+      if(r.kind==='num') out.textContent='= '+fmtNum(r.value);
+      else if(r.kind==='error'){out.className='out err';out.textContent=r.msg;}
+      else out.textContent='';
+    }
+    sl.hidden=r.kind!=='slider';
+    if(r.kind==='slider'){
+      if(r.value<line.min) line.min=r.value;
+      if(r.value>line.max) line.max=r.value;
+      const rg=sl.querySelector('.rg'),mn=sl.querySelector('.mn'),mx=sl.querySelector('.mx');
+      rg.min=line.min;rg.max=line.max;rg.value=r.value;
+      if(document.activeElement!==mn) mn.value=line.min;
+      if(document.activeElement!==mx) mx.value=line.max;
+    }
+  });
+}
+/* ---------------- Color picker ---------------- */
+const pop=document.createElement('div');pop.className='pop';pop.hidden=true;pop.setAttribute('role','dialog');document.body.appendChild(pop);
+let popLine=null,popAnchor=null;
+function setColor(line,c){line.color=c;updateOutputs();renderLegend();draw();save();}
+function openPalette(line,anchor){
+  const r=results.get(line.id);if(!r||r.kind!=='set') return;
+  popLine=line;popAnchor=anchor;
+  const C=colors(),cur=resolveColor(line.color,C);
+  pop.setAttribute('aria-label',`Color for ${r.label}`);
+  pop.innerHTML=`<div class="pop-title">Color</div><div class="pal">${PALETTE.map((name,i)=>`<button type="button" data-i="${i}" aria-label="${name}" title="${name}" aria-pressed="${line.color===i}" style="--c:var(--c${i})"></button>`).join('')}</div>
+    <label class="custom"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(cur)?cur:'#888888'}"> Custom color</label>
+    `;
+  pop.querySelectorAll('.pal button').forEach(b=>b.addEventListener('click',()=>{setColor(line,+b.dataset.i);closePalette(true);}));
+  const ci=pop.querySelector('input[type=color]');
+  ci.addEventListener('input',()=>setColor(line,ci.value.toLowerCase()));
+  ci.addEventListener('change',()=>setColor(line,ci.value.toLowerCase()));
+  pop.hidden=false;
+  const a=anchor.getBoundingClientRect(),pw=pop.offsetWidth,ph=pop.offsetHeight;
+  let x=a.left+window.scrollX,y=a.bottom+window.scrollY+8;
+  x=Math.min(x,window.scrollX+document.documentElement.clientWidth-pw-8);
+  if(a.bottom+8+ph>window.innerHeight) y=a.top+window.scrollY-ph-8;
+  pop.style.left=Math.max(8,x)+'px';pop.style.top=Math.max(8,y)+'px';
+  (pop.querySelector('.pal button[aria-pressed="true"]')||pop.querySelector('.pal button')).focus();
+}
+function closePalette(refocus){
+  if(pop.hidden) return;pop.hidden=true;
+  if(refocus&&popLine){const s=linesEl.querySelector(`[data-id="${popLine.id}"] .swatch`);if(s) s.focus();}
+  popLine=null;popAnchor=null;
+}
+document.addEventListener('pointerdown',e=>{if(!pop.hidden&&!pop.contains(e.target)&&e.target!==popAnchor) closePalette(false);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!pop.hidden){e.preventDefault();closePalette(true);}});
+window.addEventListener('resize',()=>closePalette(false));
+linesEl.addEventListener('scroll',()=>closePalette(false));
+document.querySelector('.side').addEventListener('scroll',()=>closePalette(false));
+
+document.querySelectorAll('.insert button').forEach(b=>{
+  b.addEventListener('mousedown',e=>e.preventDefault());
+  b.addEventListener('click',()=>{
+    let inp=lastInput&&document.body.contains(lastInput)?lastInput:linesEl.querySelector('.line:last-child .expr');if(!inp) return;
+    const ins=b.dataset.ins,s=inp.selectionStart??inp.value.length,e=inp.selectionEnd??s;
+    const pad=(ins==='{..}')?ins:` ${ins} `;
+    inp.value=inp.value.slice(0,s)+pad+inp.value.slice(e);
+    const caret=ins==='{..}'?s+1:s+pad.length;
+    inp.focus();inp.setSelectionRange(caret,caret);inp.dispatchEvent(new Event('input'));
+  });
+});
+$('#add').addEventListener('click',()=>{const nl=newLine('');state.lines.push(nl);run();renderLines(nl.id);});
+$('#reset').addEventListener('click',()=>{state=freshState();syncControls();run();renderLines();});
+
+const CHALLENGES=[
+  {title:'Build the primes yourself',text:'Primes are the numbers multiplication can’t reach. Build them from scratch, then compare with P. An empty third line means they match.',lines:['N2 = {2..}','built = N2 \\ (N2 * N2)','built \\ P']},
+  {title:'Two columns',text:'In the grid, drag the width until every prime after 3 sits in just two columns. Then find a width that uses exactly eight.',view:'grid'},
+  {title:'Gaps of every size',text:'Drag k in the twins line. Why does every odd k leave at most one number?',lines:['k = 2','twins = P ∩ (P - k)'],view:'grid'},
+  {title:'Euler’s polynomial',text:'Every value for n from 0 to 39 is prime, so the second line is empty. Change 39 to 40 and see what breaks.',lines:['euler = {n^2 + n + 41 : n in {0..39}}','euler \\ P']},
+  {title:'Goldbach’s conjecture',text:'The second line lists even numbers that aren’t a sum of two primes. It stays empty as far as anyone has checked. Nobody has proved it always will.',lines:['evens = 2N ∩ {4..}','evens \\ (P + P)']},
+  {title:'Landau’s problem',text:'Are there infinitely many n with n² + 1 prime? Edmund Landau asked in 1912, and it’s still open. Raise the limit and watch the count keep growing.',lines:['landau = {n : n^2 + 1 in P}']},
+  {title:'Mersenne primes',text:'Which primes p make 2^p − 1 prime too? Raise the limit and see how rarely it happens.',lines:['mersenne = P ∩ (2^P - 1)']},
+  {title:'The prime race',text:'Primes with remainder 3 when divided by 4 race the ones with remainder 1. The 3s lead almost everywhere. Look closely just before 27,000.',lines:['ones = P ∩ (4N + 1)','threes = P ∩ (4N - 1)'],view:'count',showDiff:true,nIdx:8,focus:true}
+];
+const nameOf=t=>{const m=t.match(/^\s*([A-Za-z_][A-Za-z0-9_']*)\s*:?=/);return m?m[1]:null;};
+function applyChallenge(ch){
+  state.lines=state.lines.filter(l=>l.text.trim()!=='');
+  if(ch.focus) state.lines.forEach(l=>l.hidden=true);
+  (ch.lines||[]).forEach(t=>{
+    const nm=nameOf(t);
+    const ex=state.lines.find(l=>nm?nameOf(l.text)===nm:l.text.trim()===t);
+    if(ex){ex.hidden=false;return;}
+    state.lines.push(newLine(t));
+  });
+  if(!state.lines.length) state.lines.push(newLine(''));
+  if(ch.view) state.view=ch.view;
+  if(ch.showDiff!=null) state.showDiff=ch.showDiff;
+  if(ch.nIdx!=null) state.nIdx=Math.max(state.nIdx,ch.nIdx);
+  syncControls();run();renderLines();
+}
+const chEl=$('#challenges');
+CHALLENGES.forEach(ch=>{
+  const li=document.createElement('li');
+  li.innerHTML=`<h3>${esc(ch.title)}</h3><p>${esc(ch.text)}</p><button type="button" class="link">${ch.lines?'Add to my sets':'Open the grid'}</button>`;
+  li.querySelector('button').addEventListener('click',()=>applyChallenge(ch));
+  chEl.appendChild(li);
+});
+
+/* ---------------- Views ---------------- */
+const wrap=$('#wrap'),cv=$('#cv'),ctx=cv.getContext('2d'),tip=$('#tip'),stage=$('#stage');
+let viewInfo=null;
+function colors(){const s=getComputedStyle(document.documentElement);const g=k=>s.getPropertyValue(k).trim();return {paper:g('--paper'),cell:g('--cell'),ink:g('--ink'),ink2:g('--ink-2'),ink3:g('--ink-3'),rule:g('--rule'),onInk:g('--on-ink'),set:[0,1,2,3,4,5,6,7,8,9].map(i=>g('--c'+i))};}
+const PALETTE=['Orange','Indigo','Teal','Crimson','Violet','Steel blue','Graphite','Magenta','Green','Brown'];
+const cssColor=c=>typeof c==='string'?c:`var(--c${c})`;
+function resolveColor(c,C){return typeof c==='string'?c:C.set[c];}
+function visibleSets(){
+  const out=[];
+  const C=colors();
+  state.lines.forEach(l=>{const r=results.get(l.id);if(r&&r.kind==='set'&&!l.hidden){const color=resolveColor(l.color,C);out.push({label:r.label,color,css:cssColor(l.color),rgb:hexRGB(color),b:r.b});}});
+  return out;
+}
+function inner(){const s=getComputedStyle(wrap);return {w:Math.max(40,wrap.clientWidth-parseFloat(s.paddingLeft)-parseFloat(s.paddingRight)),h:Math.max(40,wrap.clientHeight-parseFloat(s.paddingTop)-parseFloat(s.paddingBottom))};}
+function sizeCanvas(w,h){const d=window.devicePixelRatio||1;cv.width=Math.max(1,Math.round(w*d));cv.height=Math.max(1,Math.round(h*d));cv.style.width=w+'px';cv.style.height=h+'px';ctx.setTransform(d,0,0,d,0,0);ctx.clearRect(0,0,w,h);}
+function message(text,w,h,C){ctx.fillStyle=C.ink3;ctx.font=`15px ${SANS}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(text,w/2,h/2);}
+function ub(a,x){let lo=0,hi=a.length;while(lo<hi){const m=(lo+hi)>>1;if(a[m]<=x) lo=m+1;else hi=m;}return lo;}
+function renderLegend(){
+  const vis=visibleSets(),el=$('#legend');
+  el.innerHTML=vis.length?vis.map(s=>`<span style="--c:${s.css}"><i></i>${esc(s.label)}</span>`).join(''):'<span>Nothing to draw. Click the dot beside a set to show it.</span>';
+}
+function draw(){
+  tip.hidden=true;
+  wrap.classList.toggle('scroll',state.view==='grid');
+  cv.classList.toggle('pan',state.view==='spiral'||state.view==='polar');
+  const v=state.view;
+  if(v==='grid') drawGrid();else if(v==='spiral') drawSpiral();else if(v==='polar') drawPolar();else drawCount();
+}
+function drawGrid(){
+  const N=curN(),w=state.w,vis=visibleSets(),C=colors(),d=window.devicePixelRatio||1;
+  const aw=inner().w;
+  const cs=Math.max(3,Math.min(56,Math.floor(aw/w)));
+  const rows=Math.min(Math.floor(N/w)+1,Math.floor(30000/d/cs),Math.ceil(300000/w));
+  sizeCanvas(cs*w,cs*rows);
+  const gap=cs>=10?1.5:cs>=6?1:0,s=cs-gap,showNum=cs>=24;
+  ctx.font=`600 ${Math.round(cs*0.34)}px ${MONO}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  const last=Math.min(N,rows*w-1),mem=[];
+  for(let n=0;n<=last;n++){
+    const r=(n/w)|0,c=n-r*w,x=c*cs,y=r*cs;
+    mem.length=0;for(let k=0;k<vis.length;k++) if(vis[k].b.has(n)) mem.push(vis[k].color);
+    if(!mem.length){ctx.fillStyle=C.cell;ctx.fillRect(x,y,s,s);if(showNum){ctx.fillStyle=C.ink3;ctx.fillText(n,x+s/2,y+s/2+1);}continue;}
+    const sw=s/mem.length;
+    for(let j=0;j<mem.length;j++){ctx.fillStyle=mem[j];ctx.fillRect(x+j*sw,y,sw+(j<mem.length-1?0.5:0),s);}
+    if(showNum){ctx.fillStyle=C.onInk;ctx.fillText(n,x+s/2,y+s/2+1);}
+  }
+  viewInfo={kind:'grid',cs,w,last};
+  const note=$('#gnote');
+  if(note) note.textContent=`Each column holds the numbers that leave the same remainder when divided by ${w}.`+(last<N?` Showing 0 to ${fmt(last)}; widen the grid to see further.`:'');
+}
+/* Ulam spiral in closed form: 1 at (0,0), then right, up, left, down, with y pointing up. */
+function ulam(x,y){
+  const k=Math.max(Math.abs(x),Math.abs(y)),m=(2*k+1)*(2*k+1);
+  if(y===-k) return m-(k-x);
+  if(x===-k) return m-2*k-(y+k);
+  if(y===k) return m-4*k-(x+k);
+  return m-6*k-(k-y);
+}
+function hexRGB(c){const m=/^#?([0-9a-f]{6})$/i.exec(c);if(!m) return [128,128,128];const v=parseInt(m[1],16);return [v>>16,(v>>8)&255,v&255];}
+const csMin=(W,H)=>Math.max(0.3,Math.sqrt(W*H/2.5e6));
+function spView(){
+  const {w:W,h:H}=inner(),sp=state.sp;let cs=sp.cs;
+  if(cs==null){const L=Math.max(W,H),side=Math.max(5,Math.min(Math.floor(Math.sqrt(curN()))-3,Math.floor(L/2)));cs=L/side;}
+  cs=Math.max(csMin(W,H),Math.min(80,cs));
+  return {W,H,vx:sp.vx,vy:sp.vy,cs};
+}
+function spBounds(v){return {x0:Math.floor(v.vx-v.W/2/v.cs-0.5),x1:Math.ceil(v.vx+v.W/2/v.cs+0.5),y0:Math.floor(v.vy-v.H/2/v.cs-0.5),y1:Math.ceil(v.vy+v.H/2/v.cs+0.5)};}
+function drawSpiral(){
+  const vis=visibleSets(),C=colors(),N=curN(),v=spView(),{W,H,vx,vy,cs}=v;sizeCanvas(W,H);
+  const {x0,x1,y0,y1}=spBounds(v);
+  const left=x=>W/2+(x-0.5-vx)*cs,top=y=>H/2-(y+0.5-vy)*cs;
+  let beyond=false;
+  if(cs<3){
+    // Small cells: paint one pixel per number, then scale the image into place.
+    const cols=x1-x0+1,rows=y1-y0+1,off=document.createElement('canvas');off.width=cols;off.height=rows;
+    const octx=off.getContext('2d'),img=octx.createImageData(cols,rows),d=img.data;
+    const bg=hexRGB(C.cell),pp=hexRGB(C.paper);
+    for(let j=0;j<rows;j++){
+      const y=y1-j;
+      for(let i=0;i<cols;i++){
+        const n=ulam(x0+i,y),o=(j*cols+i)*4;let c;
+        if(n>N){c=pp;beyond=true;}
+        else{let col=-1;for(let k=0;k<vis.length;k++) if(vis[k].b.has(n)) col=k;c=col<0?bg:vis[col].rgb;}
+        d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255;
+      }
+    }
+    octx.putImageData(img,0,0);
+    ctx.imageSmoothingEnabled=cs<1;ctx.imageSmoothingQuality='high';
+    ctx.drawImage(off,left(x0),top(y1),cols*cs,rows*cs);ctx.imageSmoothingEnabled=true;
+  }else{
+    const gap=cs>=8?1:0,sz=cs-gap,showNum=cs>=24,mem=[];
+    ctx.font=`600 ${Math.round(cs*0.3)}px ${MONO}`;ctx.textAlign='center';ctx.textBaseline='middle';
+    for(let y=y1;y>=y0;y--){
+      for(let x=x0;x<=x1;x++){
+        const n=ulam(x,y),px=left(x),py=top(y);
+        if(n>N){beyond=true;continue;}
+        mem.length=0;for(let k=0;k<vis.length;k++) if(vis[k].b.has(n)) mem.push(vis[k].color);
+        if(!mem.length){ctx.fillStyle=C.cell;ctx.fillRect(px,py,sz+(gap?0:0.6),sz+(gap?0:0.6));}
+        else{const sw=sz/mem.length;for(let j=0;j<mem.length;j++){ctx.fillStyle=mem[j];ctx.fillRect(px+j*sw,py,sw+(j<mem.length-1?0.5:(gap?0:0.6)),sz+(gap?0:0.6));}}
+        if(showNum){ctx.fillStyle=mem.length?C.onInk:C.ink3;ctx.fillText(n,px+sz/2,py+sz/2+1);}
+      }
+    }
+  }
+  viewInfo={kind:'spiral',...v};
+  const note=$('#snote');
+  if(note) note.textContent='Ulam’s spiral: 1 sits at the center and the numbers wind outward. Drag to move, scroll to zoom.'+(beyond?` Blank cells are past ${fmt(N)}.`:'');
+}
+function pvView(){
+  const {w:W,h:H}=inner(),pv=state.pv,span=pv.span==null?curN():pv.span;
+  return {W,H,ox:pv.ox,oy:pv.oy,span,sc:(Math.min(W,H)/2-6)/span};
+}
+function polarRange(v){const d=Math.hypot(v.ox,v.oy),rad=Math.hypot(v.W,v.H)/2/v.sc;return [Math.max(0,Math.floor(d-rad)),Math.ceil(d+rad)];}
+function drawPolar(){
+  const vis=visibleSets(),C=colors(),N=curN(),v=pvView();sizeCanvas(v.W,v.H);
+  const [lo,hiRaw]=polarRange(v),hi=Math.min(N,hiRaw);
+  const cx=v.W/2-v.ox*v.sc,cy=v.H/2+v.oy*v.sc;
+  viewInfo={kind:'polar',...v,cx,cy,lo,hi};
+  const note=$('#pnote');
+  if(note) note.textContent=`Each number n sits at distance n and angle n radians. Drag to move, scroll to zoom.`+(hiRaw>N?` The circle marks ${fmt(N)}, the current limit.`:'');
+  ctx.strokeStyle=C.rule;ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,N*v.sc,0,2*Math.PI);ctx.stroke();
+  if(!vis.length){message('Show a set to plot it.',v.W,v.H,C);return;}
+  let total=0;vis.forEach(s=>{const e=s.b.elems();total+=ub(e,hi)-ub(e,lo-1);});
+  const r=Math.max(0.6,Math.min(3.2,Math.sqrt(v.W*v.H/(total+1))*0.11));
+  vis.forEach(s=>{
+    const e=s.b.elems(),a=ub(e,lo-1),b=ub(e,hi);ctx.fillStyle=s.color;
+    for(let i=a;i<b;i++){const n=e[i],px=cx+n*Math.cos(n)*v.sc,py=cy-n*Math.sin(n)*v.sc;if(px<-4||py<-4||px>v.W+4||py>v.H+4) continue;ctx.fillRect(px-r,py-r,2*r,2*r);}
+  });
+}
+function ticks(lo,hi,n){
+  const span=(hi-lo)||1,raw=span/n,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p;
+  const step=Math.max(1,(f<1.5?1:f<3?2:f<7?5:10)*p),out=[];
+  for(let v=Math.ceil(lo/step)*step;v<=hi+1e-9;v+=step) out.push(Math.round(v));
+  return out;
+}
+function axes(L,T,pw,ph,ylo,yhi,N,Y,C){
+  ctx.lineWidth=1;ctx.font=`12px ${SANS}`;ctx.fillStyle=C.ink3;ctx.strokeStyle=C.rule;
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(const v of ticks(ylo,yhi,5)){const y=Math.round(Y(v))+0.5;ctx.beginPath();ctx.moveTo(L,y);ctx.lineTo(L+pw,y);ctx.stroke();ctx.fillText(fmt(v),L-8,y);}
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(const v of ticks(0,N,Math.max(2,Math.floor(pw/110)))) ctx.fillText(fmt(v),L+v/N*pw,T+ph+8);
+}
+function drawCount(){
+  const N=curN(),vis=visibleSets(),C=colors(),{w:aw,h:ah}=inner();sizeCanvas(aw,ah);
+  const L=62,Rm=14,T=10,B=30,pw=Math.max(10,aw-L-Rm),ph=Math.max(10,ah-T-B);
+  const note=$('#cnote');
+  if(!vis.length){message('Show a set to plot it.',aw,ah,C);viewInfo=null;if(note) note.textContent='';return;}
+  if(state.showDiff){
+    if(vis.length<2){message('Show at least two sets to compare them.',aw,ah,C);viewInfo=null;if(note) note.textContent='';return;}
+    const A=vis[0].b.elems(),Bv=vis[1].b.elems(),cols=Math.ceil(pw);
+    const mn=new Float64Array(cols).fill(Infinity),mx=new Float64Array(cols).fill(-Infinity);
+    let ia=0,ib=0,lo=0,hi=0;
+    for(let n=0;n<=N;n++){
+      while(ia<A.length&&A[ia]<=n) ia++;while(ib<Bv.length&&Bv[ib]<=n) ib++;
+      const dd=ia-ib,c=Math.min(cols-1,Math.floor(n/N*pw));
+      if(dd<mn[c]) mn[c]=dd;if(dd>mx[c]) mx[c]=dd;if(dd<lo) lo=dd;if(dd>hi) hi=dd;
+    }
+    const top=Math.max(hi,1),bot=Math.min(lo,-1),Y=v=>T+(top-v)/(top-bot)*ph;
+    axes(L,T,pw,ph,bot,top,N,Y,C);
+    ctx.strokeStyle=C.ink2;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,Math.round(Y(0))+0.5);ctx.lineTo(L+pw,Math.round(Y(0))+0.5);ctx.stroke();
+    for(let c=0;c<cols;c++){
+      if(mn[c]===Infinity) continue;const x=L+c;
+      if(mx[c]>0){const y1=Y(mx[c]),y2=Y(Math.max(mn[c],0));ctx.fillStyle=vis[0].color;ctx.fillRect(x,y1,1,Math.max(1.5,y2-y1));}
+      if(mn[c]<0){const y1=Y(Math.min(mx[c],0)),y2=Y(mn[c]);ctx.fillStyle=vis[1].color;ctx.fillRect(x,y1,1,Math.max(1.5,y2-y1));}
+    }
+    if(note) note.textContent=`Above the line, ${vis[0].label} is ahead. Below it, ${vis[1].label} is ahead.`;
+  }else{
+    const counts=vis.map(s=>s.b.count),ref=N>=3?N/Math.log(N):0;
+    const maxY=Math.max(1,...counts,state.showRef?ref:0),Y=v=>T+ph-v/maxY*ph;
+    axes(L,T,pw,ph,0,maxY,N,Y,C);
+    const cols=Math.ceil(pw);
+    if(state.showRef){
+      ctx.strokeStyle=C.ink3;ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();let started=false;
+      for(let c=0;c<=cols;c++){const n=c/pw*N;if(n<3) continue;const y=Y(n/Math.log(n));if(!started){ctx.moveTo(L+c,y);started=true;}else ctx.lineTo(L+c,y);}
+      ctx.stroke();ctx.setLineDash([]);
+    }
+    vis.forEach(s=>{
+      const e=s.b.elems();ctx.strokeStyle=s.color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(L,Y(ub(e,0)));
+      for(let c=1;c<=cols;c++){const n=Math.min(N,Math.round(c/pw*N));ctx.lineTo(L+c,Y(ub(e,n)));}
+      ctx.stroke();
+    });
+    if(note) note.textContent=state.showRef?'Each line counts how many numbers of a set lie below x. The dashed curve is x / ln x.':'Each line counts how many numbers of a set lie below x.';
+  }
+  viewInfo={kind:'count',L,pw,T,ph,N};
+}
+
+/* ---------------- View controls ---------------- */
+function renderViewCtl(){
+  const el=$('#vctl'),v=state.view;
+  if(v==='grid'){
+    el.innerHTML=`<label class="ctl">Width <input type="range" id="gw" min="1" max="60" step="1" value="${state.w}"><output id="gwo">${state.w}</output></label><span class="cap" id="gnote"></span>`;
+    $('#gw').addEventListener('input',e=>{state.w=+e.target.value;$('#gwo').textContent=state.w;drawSoon();save();});
+  }else if(v==='spiral'){
+    el.innerHTML=`${zoomButtons()}<span class="cap" id="snote"></span>`;hookZoom();
+  }else if(v==='polar'){
+    el.innerHTML=`${zoomButtons()}<span class="cap" id="pnote"></span>`;hookZoom();
+  }else{
+    el.innerHTML=`<label class="chk"><input type="checkbox" id="cref" ${state.showRef?'checked':''}> Compare with x / ln x</label><label class="chk"><input type="checkbox" id="cdiff" ${state.showDiff?'checked':''}> Plot first set minus second</label><span class="cap" id="cnote"></span>`;
+    $('#cref').addEventListener('change',e=>{state.showRef=e.target.checked;draw();save();});
+    $('#cdiff').addEventListener('change',e=>{state.showDiff=e.target.checked;draw();save();});
+  }
+}
+function syncControls(){
+  $('#nr').value=state.nIdx;$('#no').textContent=fmt(curN());
+  document.querySelectorAll('.tab').forEach(t=>{const on=t.dataset.view===state.view;t.setAttribute('aria-selected',String(on));t.tabIndex=on?0:-1;});
+  renderViewCtl();
+}
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{state.view=t.dataset.view;syncControls();draw();save();}));
+$('#nr').addEventListener('input',e=>{state.nIdx=+e.target.value;syncN();runSoon();});
+function syncN(){$('#nr').value=state.nIdx;$('#no').textContent=fmt(curN());}
+function zoomButtons(){return `<span class="zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">−</button><button type="button" data-z="home" class="home">Center on 1</button></span>`;}
+function hookZoom(){document.querySelectorAll('.zoom button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.z==='home'){if(state.view==='spiral') state.sp={vx:0,vy:0,cs:null};else state.pv={ox:0,oy:0,span:null};draw();save();return;}
+  const {w:W,h:H}=inner();zoomAt(b.dataset.z==='out'?1.5:1/1.5,W/2,H/2);
+}));}
+// f > 1 zooms out. (px, py) is the canvas point that stays fixed.
+function zoomAt(f,px,py){
+  if(state.view==='spiral'){
+    const v=spView(),X=(px-v.W/2)/v.cs+v.vx,Y=v.vy-(py-v.H/2)/v.cs;
+    const cs=Math.max(csMin(v.W,v.H),Math.min(80,v.cs/f));
+    state.sp={vx:X-(px-v.W/2)/cs,vy:Y+(py-v.H/2)/cs,cs};
+  }else if(state.view==='polar'){
+    const v=pvView(),X=v.ox+(px-v.W/2)/v.sc,Y=v.oy-(py-v.H/2)/v.sc;
+    const span=Math.max(5,Math.min(3e6,v.span*f)),sc=(Math.min(v.W,v.H)/2-6)/span;
+    state.pv={ox:X-(px-v.W/2)/sc,oy:Y+(py-v.H/2)/sc,span};
+  }else return;
+  drawSoon();scheduleBump();
+}
+function pan(dx,dy){
+  if(state.view==='spiral'){const v=spView();state.sp={vx:v.vx-dx/v.cs,vy:v.vy+dy/v.cs,cs:v.cs};}
+  else if(state.view==='polar'){const v=pvView();state.pv={ox:v.ox-dx/v.sc,oy:v.oy+dy/v.sc,span:v.span};}
+  drawSoon();
+}
+// When the view reaches numbers that haven't been computed, raise the limit (up to 1,000,000).
+function neededN(){
+  if(state.view==='spiral'){const b=spBounds(spView());const k=Math.max(Math.abs(b.x0),Math.abs(b.x1),Math.abs(b.y0),Math.abs(b.y1));return (2*k+1)*(2*k+1);}
+  if(state.view==='polar') return polarRange(pvView())[1];
+  return 0;
+}
+let bumpTimer=null;
+function scheduleBump(){clearTimeout(bumpTimer);bumpTimer=setTimeout(maybeBump,250);}
+function maybeBump(){
+  const need=Math.min(NSTEPS[NSTEPS.length-1],neededN());let k=state.nIdx;
+  while(k<NSTEPS.length-1&&NSTEPS[k]<need) k++;
+  if(k!==state.nIdx){state.nIdx=k;syncN();runSoon();}else save();
+}
+cv.addEventListener('wheel',e=>{
+  if(state.view!=='spiral'&&state.view!=='polar') return;
+  e.preventDefault();tip.hidden=true;
+  const dy=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;
+  const r=cv.getBoundingClientRect();
+  zoomAt(Math.exp(Math.max(-0.6,Math.min(0.6,dy*0.0015))),e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
+
+/* ---------------- Hover ---------------- */
+function factorText(n){
+  if(n===0) return 'zero';if(n===1) return 'one, which isn’t prime';
+  let m=n;const parts=[];
+  for(let p=2;p*p<=m;p++){if(m%p===0){let e=0;while(m%p===0){m/=p;e++;}parts.push(e>1?`${p}<sup>${e}</sup>`:String(p));}}
+  if(m>1) parts.push(String(m));
+  return (parts.length===1&&!parts[0].includes('sup'))?'prime':parts.join(' × ');
+}
+function numTip(n){
+  const chips=[];
+  state.lines.forEach(l=>{const r=results.get(l.id);if(r&&r.kind==='set'&&r.b.has(n)) chips.push(`<span style="--c:${cssColor(l.color)}"><i></i>${esc(r.label)}</span>`);});
+  return `<div class="tn">${fmt(n)}</div><div class="tf">${factorText(n)}</div>${chips.length?`<div class="tm">${chips.join('')}</div>`:''}`;
+}
+function countTip(n){
+  const vis=visibleSets();
+  let h=`<div class="tn">up to ${fmt(n)}</div>`;
+  const cs=vis.map(s=>ub(s.b.elems(),n));
+  vis.forEach((s,i)=>{h+=`<div class="row"><span>${esc(s.label)}</span><span>${fmt(cs[i])}</span></div>`;});
+  if(state.showDiff&&vis.length>=2) h+=`<div class="row"><span>difference</span><span>${fmt(cs[0]-cs[1])}</span></div>`;
+  return h;
+}
+function onHover(e){
+  if(!viewInfo){tip.hidden=true;return;}
+  const rect=cv.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;let html=null;
+  const vi=viewInfo;
+  if(vi.kind==='grid'){const c=Math.floor(x/vi.cs),r=Math.floor(y/vi.cs);if(c>=0&&c<vi.w&&r>=0){const n=r*vi.w+c;if(n<=vi.last) html=numTip(n);}}
+  else if(vi.kind==='spiral'){const n=ulam(Math.round((x-vi.W/2)/vi.cs+vi.vx),Math.round(vi.vy-(y-vi.H/2)/vi.cs));if(n<=curN()) html=numTip(n);}
+  else if(vi.kind==='polar'){
+    let best=-1,bd=100;
+    visibleSets().forEach(s=>{const el=s.b.elems(),a=ub(el,vi.lo-1),k=ub(el,vi.hi);for(let i=a;i<k;i++){const n=el[i];const dx=vi.cx+n*Math.cos(n)*vi.sc-x,dy=vi.cy-n*Math.sin(n)*vi.sc-y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=n;}}});
+    if(best>=0) html=numTip(best);
+  }
+  else if(vi.kind==='count'){if(x>=vi.L&&x<=vi.L+vi.pw&&y>=vi.T&&y<=vi.T+vi.ph){const n=Math.round((x-vi.L)/vi.pw*vi.N);html=countTip(n);}}
+  if(!html){tip.hidden=true;return;}
+  tip.innerHTML=html;tip.hidden=false;
+  const sr=stage.getBoundingClientRect();let tx=e.clientX-sr.left+14,ty=e.clientY-sr.top+14;
+  const tw=tip.offsetWidth,th=tip.offsetHeight;
+  if(tx+tw>sr.width-8) tx=e.clientX-sr.left-tw-14;if(ty+th>sr.height-8) ty=e.clientY-sr.top-th-14;
+  tip.style.left=Math.max(4,tx)+'px';tip.style.top=Math.max(4,ty)+'px';
+}
+let drag=null;
+const pannable=()=>state.view==='spiral'||state.view==='polar';
+cv.addEventListener('pointerdown',e=>{
+  if(!pannable()||e.button>0){onHover(e);return;}
+  drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};
+  cv.setPointerCapture(e.pointerId);cv.classList.add('grabbing');tip.hidden=true;
+});
+cv.addEventListener('pointermove',e=>{
+  if(drag&&e.pointerId===drag.id){
+    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(!drag.moved&&Math.hypot(dx,dy)<4) return;
+    drag.moved=true;drag.x=e.clientX;drag.y=e.clientY;pan(dx,dy);return;
+  }
+  onHover(e);
+});
+function endDrag(e){
+  if(!drag||e.pointerId!==drag.id) return;
+  const moved=drag.moved;drag=null;cv.classList.remove('grabbing');
+  if(moved) scheduleBump();else onHover(e);
+}
+cv.addEventListener('pointerup',endDrag);
+cv.addEventListener('pointercancel',endDrag);
+cv.addEventListener('pointerleave',()=>{if(!drag) tip.hidden=true;});
+wrap.addEventListener('scroll',()=>{tip.hidden=true;});
+
+/* ---------------- Run loop ---------------- */
+let timer=null,rafRun=false,rafDraw=false;
+function run(){clearTimeout(timer);evaluateAll();updateOutputs();renderLegend();draw();save();}
+function runSoon(){if(rafRun) return;rafRun=true;requestAnimationFrame(()=>{rafRun=false;run();});}
+function drawSoon(){if(rafDraw) return;rafDraw=true;requestAnimationFrame(()=>{rafDraw=false;draw();});}
+function schedule(){clearTimeout(timer);timer=setTimeout(run,140);}
+
+new ResizeObserver(()=>drawSoon()).observe(wrap);
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>drawSoon());
+
+syncControls();
+evaluateAll();
+renderLines();
+renderLegend();
+draw();
+})();
+</script>
+<script>
+if(window.parent!==window)window.addEventListener('keydown',e=>{
+  const t=e.target,typing=t instanceof HTMLElement&&(t.isContentEditable||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&!['range','checkbox','button','color'].includes(t.type)));
+  if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(!['ArrowRight','ArrowLeft','PageDown','PageUp','Home','End','f','F'].includes(e.key))return;
+  e.preventDefault();window.parent.postMessage({deckKey:e.key},'*');
+});
+</script>
+</body>
+</html>

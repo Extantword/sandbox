@@ -1,0 +1,21 @@
+{
+  "name": "sandbox",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Diapositivas: qué es un sandbox y cómo se diseña uno",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "publish-site": "bash scripts/publish-site.sh"
+  },
+  "dependencies": {
+    "katex": "^0.18.4"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1"
+  }
+}
