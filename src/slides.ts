@@ -1,5 +1,8 @@
 import type { AnimationName } from "./animations.ts";
 
+/** Somewhere else to go, said in words. */
+export type Link = { href: string; text: string };
+
 /** A picture from `public/img`, with what it shows for whoever cannot see it. */
 export type Picture = { src: string; alt: string };
 
@@ -13,14 +16,15 @@ export type Picture = { src: string; alt: string };
  * - `principle`: one idea, said in a paragraph, beside an animation of it (`animations.ts`).
  * - `example`: a title, what it means, and the pictures that show it.
  * - `gallery`: a title and pictures, one large and the others beside it.
- * - `app`: a sandbox of our own, live, over the whole page (`public/apps`).
+ * - `app`: a sandbox, live, over the whole page: one of ours in `public/apps`, or a site of its own
+ *   given by its full address, which also gets a way to open it in a tab of its own.
  */
 export type Slide =
   | { kind: "cover"; title: string; picture: Picture }
   | { kind: "collage"; pictures: Picture[] }
   | { kind: "quote"; text: string; by: string }
   | { kind: "list"; title: string; items: string[]; source?: string; numbered?: boolean }
-  | { kind: "principle"; count: string; name: string; says: string; animation: AnimationName }
+  | { kind: "principle"; count: string; name: string; says: string; animation: AnimationName; link?: Link }
   | { kind: "example"; title: string; says: string; example: string; pictures: Picture[] }
   | { kind: "gallery"; title: string; pictures: Picture[]; large: Picture }
   | { kind: "app"; src: string; title: string };
@@ -83,6 +87,7 @@ export const SLIDES: Slide[] = [
   },
   { kind: "app", src: "apps/life.html", title: "Life" },
   { kind: "app", src: "apps/wolfram.html", title: "Wolfram" },
+  { kind: "app", src: "https://extantword.github.io/interactive-algebra/", title: "Algebra Sandbox" },
   {
     kind: "gallery",
     title: "Maravilla accidental",
@@ -172,6 +177,7 @@ export const SLIDES: Slide[] = [
     name: "Invent Things That You Would Want to Use Yourself",
     says: "Si quien diseña usa lo que construye, lo prueba todos los días y ve dónde falla. El primer usuario es uno mismo.",
     animation: "yourself",
+    link: { href: "https://extantword.github.io/diff-geo/", text: "Un ejemplo: diff-geo, geometría diferencial interactiva" },
   },
   {
     kind: "principle",

@@ -60,6 +60,7 @@ function build(slide: Slide): HTMLElement {
             <p class="principle__count">${escapeHtml(slide.count)}</p>
             <h2 class="principle__name">${escapeHtml(slide.name)}</h2>
             <p class="principle__says">${rich(slide.says)}</p>
+            ${slide.link ? `<a class="principle__link" href="${slide.link.href}" target="_blank" rel="noopener">${escapeHtml(slide.link.text)} ↗</a>` : ""}
           </div>
           <canvas class="principle__canvas" data-animation="${slide.animation}"></canvas>
         </div>`;
@@ -86,6 +87,12 @@ function build(slide: Slide): HTMLElement {
     case "app":
       // Loaded the first time it is shown, and kept, so what was built there is still there.
       page.innerHTML = `<iframe class="app" title="${escapeHtml(slide.title)}" data-src="${slide.src}"></iframe>`;
+      // A site of its own may be wanted whole, with nothing of the deck round it.
+      if (/^https?:/.test(slide.src))
+        page.insertAdjacentHTML(
+          "beforeend",
+          `<a class="app__open" href="${slide.src}" target="_blank" rel="noopener">abrir en otra pestaña ↗</a>`,
+        );
       break;
   }
   return page;
@@ -245,6 +252,32 @@ function main() {
     const key = (event.data as { deckKey?: unknown } | null)?.deckKey;
     if (typeof key === "string" && pages.some((page) => page.querySelector("iframe")?.contentWindow === event.source))
       onKey(key);
+  });
+
+  /*
+   * A site of its own does not hand the keys on as ours do. Served from the same place as the deck
+   * its keys can be listened to directly; from anywhere else they cannot, and the arrows are then
+   * the site's until the deck is clicked.
+   */
+  pages.forEach((page, i) => {
+    const frame = page.querySelector<HTMLIFrameElement>("iframe.app");
+    const slide = SLIDES[i]!;
+    if (!frame || slide.kind !== "app" || !/^https?:/.test(slide.src)) return;
+    frame.addEventListener("load", () => {
+      try {
+        frame.contentWindow!.addEventListener("keydown", (event) => {
+          // Another window's elements are not this one's HTMLElement, so ask what they are.
+          const target = event.target as HTMLElement | null;
+          const typing = !!target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName ?? ""));
+          if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+          if (!["ArrowRight", "ArrowLeft", "PageDown", "PageUp"].includes(event.key)) return;
+          event.preventDefault();
+          onKey(event.key);
+        });
+      } catch {
+        // Another origin: its keys are its own.
+      }
+    });
   });
 
   window.addEventListener("keydown", (event) => {
