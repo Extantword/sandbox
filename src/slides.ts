@@ -17,6 +17,7 @@ export type Picture = { src: string; alt: string; caption?: string };
  *   with `embed`, beside the thing itself, running in the page.
  * - `example`: a title, what it means, and the pictures that show it, each one named underneath.
  * - `gallery`: a title and pictures, one large and the others beside it.
+ * - `end`: one word in the middle of the page, to close on.
  * - `app`: a sandbox, live, over the whole page: one of ours in `public/apps`, or a site of its own
  *   given by its full address, which also gets a way to open it in a tab of its own.
  */
@@ -28,7 +29,8 @@ export type Slide =
   | { kind: "principle"; count?: string; name: string; says: string; animation: AnimationName; embed?: string; link?: Link }
   | { kind: "example"; title: string; says: string; pictures: Picture[] }
   | { kind: "gallery"; title: string; pictures: Picture[]; large: Picture }
-  | { kind: "app"; src: string; title: string };
+  | { kind: "app"; src: string; title: string }
+  | { kind: "end"; text: string };
 
 const img = (name: string, alt: string, caption?: string): Picture => ({
   src: `img/${name}.png`,
@@ -39,6 +41,8 @@ const img = (name: string, alt: string, caption?: string): Picture => ({
 export const TITLE = "Sandbox";
 
 export const SLIDES: Slide[] = [
+  // Before anything is said: the primes, walking.
+  { kind: "app", src: "apps/primewalk.html", title: "The prime walk" },
   {
     kind: "cover",
     title: "Sandbox",
@@ -198,4 +202,5 @@ export const SLIDES: Slide[] = [
     says: "Nada sale bien a la primera: se construye, se prueba, se ajusta y se vuelve a empezar, cada vez un poco más cerca.",
     animation: "iterate",
   },
+  { kind: "end", text: "Gracias" },
 ];

@@ -508,3 +508,12 @@ body.is-bare .running-head {
 .app__open:hover {
   color: var(--highlight);
 }
+
+/* ---- the last page: one word, as the cover has ---- */
+
+.end {
+  margin: 0;
+  font-weight: normal;
+  font-size: 3.4em;
+  letter-spacing: 0.02em;
+}

@@ -89,6 +89,9 @@ function build(slide: Slide): HTMLElement {
           </div>
         </div>`;
       break;
+    case "end":
+      page.innerHTML = `<h1 class="end">${escapeHtml(slide.text)}</h1>`;
+      break;
     case "app":
       // Loaded the first time it is shown, and kept, so what was built there is still there.
       page.innerHTML = `<iframe class="app" title="${escapeHtml(slide.title)}" data-src="${slide.src}"></iframe>`;
@@ -160,7 +163,7 @@ function main() {
     if (app && !app.src) app.src = app.dataset.src!;
     // Leaving a sandbox takes the keyboard back from it.
     if (!app && document.activeElement instanceof HTMLIFrameElement) document.activeElement.blur();
-    document.body.classList.toggle("is-bare", SLIDES[index]!.kind === "cover" || SLIDES[index]!.kind === "collage");
+    document.body.classList.toggle("is-bare", ["cover", "collage", "end"].includes(SLIDES[index]!.kind));
     syncSteps();
     play(pages[index]!);
     counter.textContent = `${index + 1} / ${SLIDES.length}`;
