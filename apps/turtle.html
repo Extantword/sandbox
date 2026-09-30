@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Turtle Geometry</title>
+<style>
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Regular.woff2) format("woff2");font-weight:400;font-style:normal}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Italic.woff2) format("woff2");font-weight:400;font-style:italic}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Bold.woff2) format("woff2");font-weight:700;font-style:normal}
+:root{
+  --bg:#FFFFFF; --panel:#FAFAFB; --paper:#FFFFFF; --grid:#F0F1F3; --grid-major:#E1E3E7; --axis:#C3C7CE;
+  --ink:#1B1D22; --muted:#9097A1; --line:#E3E5E9; --btn:#1B1D22; --btn-ink:#FFFFFF;
+  --shell:#F27305; --shell-edge:#B45404; --skin:#B9BEC6; --err:#D91A14; --focus:#F27305;
+  --serif:"KaTeX_Main","Latin Modern Roman","Iowan Old Style",Georgia,serif;
+  --sans:ui-sans-serif, system-ui, sans-serif;
+  --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--sans);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+
+/* The page is the sandbox: the drawing takes what is left once the program has what it needs. */
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,24vw) minmax(0,1fr);gap:14px;padding:10px 14px}
+.program,.stage{min-height:0;display:flex;flex-direction:column;gap:10px}
+
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bar label{font:400 18px var(--serif)}
+select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:14px}
+textarea{flex:1;min-height:120px;resize:none;background:var(--panel);border:1px solid var(--line);border-radius:.6em;padding:14px;font:14px/1.6 var(--mono);tab-size:2;white-space:pre;overflow:auto}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);background:transparent;border-radius:999px;padding:7px 18px;cursor:pointer;font-size:15px;transition:border-color .2s,background .2s}
+.btn:hover:not(:disabled){border-color:var(--shell)}
+.btn.primary{background:var(--btn);border-color:var(--btn);color:var(--btn-ink)}
+.btn.primary:hover{background:var(--shell);border-color:var(--shell)}
+.btn:disabled{opacity:.4;cursor:default}
+.speed{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted)}
+.speed input{width:110px;accent-color:var(--shell)}
+.speed output{min-width:5.5ch;font-family:var(--mono);font-size:13px}
+.hint{margin:0;font-size:13px;color:var(--muted)}
+.procs{margin:0;font-size:14px;color:var(--muted)}
+.procs code{font-family:var(--mono);color:var(--ink);font-size:13px}
+
+details{border-top:1px solid var(--line);padding-top:8px;font-size:14px}
+summary{cursor:pointer;font:400 17px var(--serif)}
+.ref{max-height:40vh;overflow:auto;margin-top:8px;padding-right:6px}
+.ref p{margin:0 0 10px;max-width:60ch}
+.ref dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin:0 0 12px}
+.ref dt{font-family:var(--mono);font-size:13px}
+.ref dd{margin:0;color:var(--muted)}
+.ref h3{font:400 16px var(--serif);margin:14px 0 4px}
+
+.paper{position:relative;flex:1;min-height:280px;cursor:grab;touch-action:none;border:1px solid var(--line);border-radius:.6em;box-shadow:0 2px 22px rgb(0 0 0 / 5%);overflow:hidden;background:var(--paper)}
+.paper canvas{position:absolute;inset:0;width:100%;height:100%}
+.readout{position:absolute;left:10px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px 14px;font:12.5px/1.4 var(--mono);color:var(--muted);background:color-mix(in srgb,var(--paper) 85%,transparent);padding:4px 8px;border-radius:6px;pointer-events:none}
+.readout b{font-weight:500;color:var(--ink)}
+.zoom{position:absolute;right:8px;top:8px;display:flex;gap:4px}
+.zoom button{width:32px;height:32px;border:1px solid var(--line);background:var(--panel);border-radius:6px;cursor:pointer;font-size:17px;line-height:1}
+.zoom button.wide{width:auto;padding:0 10px;font-size:13px}
+
+.cmdline{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:0 12px}
+.cmdline span{font:600 16px var(--mono);color:var(--shell)}
+.cmdline input{flex:1;border:0;background:transparent;padding:10px 0;font:14px var(--mono);min-width:0}
+.cmdline input:focus{outline:none}
+.cmdline:focus-within{outline:2px solid var(--focus);outline-offset:1px}
+.log{height:96px;overflow:auto;font:13px/1.55 var(--mono);padding:2px 4px}
+.log p{margin:0;white-space:pre-wrap;word-break:break-word}
+.log .echo{color:var(--muted)}
+.log .err{color:var(--err)}
+.log .note{color:var(--muted);font-family:var(--sans);font-size:14px}
+.log button{background:none;border:0;padding:0;text-decoration:underline;cursor:pointer;color:var(--ink);font:inherit}
+
+@media (max-width:860px){
+  html,body{height:auto}
+  main{flex:none;grid-template-columns:1fr;padding:0 14px 16px}
+  .program,.stage{min-height:auto}
+  .readout{font-size:11.5px;gap:2px 10px}
+  .stage{order:-1}
+  .paper{flex:none;height:56vh}
+  textarea{min-height:260px}
+  .log{height:96px}
+  .ref{max-height:none}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<main>
+  <section class="program" aria-label="Program">
+    <div class="bar">
+      <label for="editor">Program</label>
+      <select id="examples" aria-label="Load an example">
+        <option value="">Load an example…</option>
+      </select>
+    </div>
+    <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea>
+    <div class="controls">
+      <button class="btn primary" id="run">Run</button>
+      <button class="btn" id="stop" disabled>Stop</button>
+      <label class="speed">Speed <input type="range" id="speed" min="1" max="10" value="8"><output id="speedOut">8</output></label>
+    </div>
+    <p class="hint">Ctrl + Enter runs the program. The turtle keeps its place between runs; start with CS for a clean page.</p>
+    <p class="procs" id="procs"></p>
+    <details>
+      <summary>Commands</summary>
+      <div class="ref">
+        <p>The turtle has a position and a heading. Headings are in degrees, clockwise from straight up. Watch the turned readout: any path that closes up and faces the way it started turns a whole number of times around, 360°, 720°, and so on. That is Papert’s Total Turtle Trip Theorem.</p>
+        <h3>Moving</h3>
+        <dl>
+          <dt>FD n, BK n</dt><dd>forward or back n steps</dd>
+          <dt>RT a, LT a</dt><dd>turn right or left a degrees</dd>
+          <dt>HOME</dt><dd>back to the middle, facing up</dd>
+          <dt>SETXY x y</dt><dd>go to a point</dd>
+          <dt>SETH a</dt><dd>face heading a</dd>
+          <dt>ARC a r</dt><dd>draw an arc of a degrees, radius r, around the turtle</dd>
+        </dl>
+        <h3>Pen and page</h3>
+        <dl>
+          <dt>PU, PD</dt><dd>pen up, pen down</dd>
+          <dt>SETPC c</dt><dd>pen color: 0–15, a name like "red, or [r g b] from 0 to 255</dd>
+          <dt>SETPENSIZE n</dt><dd>line width</dd>
+          <dt>SETBG c</dt><dd>page color</dd>
+          <dt>CS, CLEAN</dt><dd>clear and go home; clear only</dd>
+          <dt>HT, ST</dt><dd>hide or show the turtle</dd>
+          <dt>LABEL x</dt><dd>write text at the turtle</dd>
+          <dt>XCOR, YCOR, HEADING</dt><dd>where the turtle is</dd>
+          <dt>TOWARDS [x y]</dt><dd>heading that points at a spot</dd>
+          <dt>WAIT n</dt><dd>pause n sixtieths of a second</dd>
+        </dl>
+        <h3>Procedures and control</h3>
+        <dl>
+          <dt>TO name :in … END</dt><dd>define a procedure</dd>
+          <dt>REPEAT n [ … ]</dt><dd>repeat; REPCOUNT counts 1, 2, 3…</dd>
+          <dt>IF c [ … ]</dt><dd>run if c is true</dd>
+          <dt>IFELSE c [ … ] [ … ]</dt><dd>choose one</dd>
+          <dt>FOR [i 1 10 2] [ … ]</dt><dd>count with a variable</dd>
+          <dt>WHILE [c] [ … ]</dt><dd>loop while c is true</dd>
+          <dt>STOP, OUTPUT x</dt><dd>leave a procedure, or return a value</dd>
+          <dt>MAKE "n v, :n</dt><dd>set and read a variable</dd>
+          <dt>LOCAL "n</dt><dd>variable private to a procedure</dd>
+        </dl>
+        <h3>Numbers, words, lists</h3>
+        <dl>
+          <dt>+ - * / = &lt; &gt;</dt><dd>arithmetic and comparison</dd>
+          <dt>SUM, PRODUCT, QUOTIENT</dt><dd>also DIFFERENCE, REMAINDER, POWER</dd>
+          <dt>SQRT, SIN, COS, ARCTAN</dt><dd>trig works in degrees</dd>
+          <dt>RANDOM n</dt><dd>whole number from 0 to n − 1</dd>
+          <dt>LIST, SENTENCE, WORD</dt><dd>build lists and words</dd>
+          <dt>FIRST, BF, ITEM, COUNT</dt><dd>take them apart; PICK chooses one</dd>
+          <dt>PRINT x, SHOW x</dt><dd>write to the log below the page</dd>
+        </dl>
+      </div>
+    </details>
+  </section>
+
+  <section class="stage" aria-label="Drawing">
+    <div class="paper" id="paper">
+      <canvas id="cvGrid" aria-hidden="true"></canvas>
+      <canvas id="cvInk" role="img" aria-label="Turtle drawing"></canvas>
+      <canvas id="cvTurtle" aria-hidden="true"></canvas>
+      <div class="zoom">
+        <button id="zoomOut" aria-label="Zoom out">−</button>
+        <button id="zoomIn" aria-label="Zoom in">+</button>
+        <button id="zoomReset" class="wide">Fit</button>
+      </div>
+      <div class="readout" aria-live="off">
+        <span>x <b id="rx">0</b></span><span>y <b id="ry">0</b></span>
+        <span>heading <b id="rh">0°</b></span><span>turned <b id="rt">0°</b></span>
+        <span>pen <b id="rp">down</b></span>
+      </div>
+    </div>
+    <div class="cmdline">
+      <span aria-hidden="true">?</span>
+      <input id="cmd" placeholder="Type a command, like fd 100, and press Enter" aria-label="Command" autocapitalize="off" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="log" id="log" role="log" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+/* ================= Logo interpreter ================= */
+class LogoError extends Error{}
+class StopSig{constructor(v,has){this.v=v;this.has=has}}
+const NUMRE=/^-?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i;
+const OPCH='+-*/=<>';
+
+function parseWords(text){
+  const root=[],stack=[root];let cur='';
+  const push=w=>stack[stack.length-1].push(w);
+  const flush=()=>{if(cur){push(NUMRE.test(cur)?Number(cur):cur);cur=''}};
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(c===';'){flush();while(i<text.length&&text[i]!=='\n')i++;continue}
+    if(/\s/.test(c)){flush();continue}
+    if(c==='['){flush();const a=[];push(a);stack.push(a);continue}
+    if(c===']'){flush();if(stack.length===1)throw new LogoError('There is a ] without a matching [');stack.pop();continue}
+    if(c==='('||c===')'){flush();push(c);continue}
+    cur+=c;
+  }
+  flush();
+  if(stack.length>1)throw new LogoError('A [ was opened but never closed with ]');
+  return root;
+}
+
+function splitWord(w,out){
+  if(w[0]==='"'){out.push({t:'quote',v:w.slice(1)});return}
+  if(w==='('){out.push({t:'lp'});return}
+  if(w===')'){out.push({t:'rp'});return}
+  let i=0;
+  while(i<w.length){
+    const c=w[i];
+    if(OPCH.includes(c)){
+      if(c==='-'&&w.length>1&&(i===0||OPCH.includes(w[i-1]))){out.push({t:'neg'});i++;continue}
+      let op=c;const n=w[i+1];
+      if(c==='<'&&(n==='='||n==='>'))op+=n;else if(c==='>'&&n==='=')op+=n;
+      out.push({t:'op',v:op});i+=op.length;continue;
+    }
+    let j=i;while(j<w.length&&!OPCH.includes(w[j]))j++;
+    const s=w.slice(i,j);
+    if(s[0]===':')out.push({t:'var',v:s.slice(1).toLowerCase()});
+    else if(NUMRE.test(s))out.push({t:'num',v:Number(s)});
+    else out.push({t:'word',v:s});
+    i=j;
+  }
+}
+const tokCache=new WeakMap();
+function tokenize(list){
+  let t=tokCache.get(list);if(t)return t;
+  t=[];
+  for(const el of list){
+    if(Array.isArray(el))t.push({t:'list',v:el});
+    else if(typeof el==='number')t.push({t:'num',v:el});
+    else splitWord(String(el),t);
+  }
+  tokCache.set(list,t);return t;
+}
+
+function fmtNum(n){if(Number.isInteger(n))return String(n);const r=parseFloat(n.toFixed(6));return String(Object.is(r,-0)?0:r)}
+function fmt(v,brackets){
+  if(Array.isArray(v)){const s=v.map(x=>fmt(x,true)).join(' ');return brackets?'['+s+']':s}
+  if(typeof v==='number')return fmtNum(v);
+  return String(v);
+}
+function asNum(v){if(typeof v==='number')return v;if(typeof v==='string'&&NUMRE.test(v))return Number(v);return null}
+function eq(a,b){
+  if(Array.isArray(a)||Array.isArray(b)){
+    if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return false;
+    return a.every((x,i)=>eq(x,b[i]));
+  }
+  const na=asNum(a),nb=asNum(b);
+  if(na!==null&&nb!==null)return Math.abs(na-nb)<1e-9;
+  return String(a).toLowerCase()===String(b).toLowerCase();
+}
+const TF=b=>b?'true':'false';
+function normH(h){h=((h%360)+360)%360;if(360-h<1e-9||h<1e-9)h=0;return h}
+const RAD=Math.PI/180;
+const PAL=['#000000','#2350D8','#1E9A43','#15A3B8','#D42A2A','#B03AA6','#E8B21A','#FFFFFF','#8A5A2B','#D2B48C','#2E6B3A','#6FD3D3','#F08A70','#6A3FA0','#F08C1C','#9A9A9A'];
+
+const P={};
+function def(names,arity,fn,min,max){
+  const list=names.split(' ');
+  for(const n of list)P[n]={arity,fn,min:min??arity,max:max??arity};
+}
+
+class Interp{
+  constructor(){this.procs=new Map();this.globals=new Map();this.frames=[];this.rep=[];this.ops=[];this.out=()=>{};this.resetTurtle()}
+  resetTurtle(){this.T={x:0,y:0,h:0,pen:true,color:null,size:2,vis:true}}
+  num(v,nm){const n=asNum(v);if(n===null)throw new LogoError(`${nm} doesn’t like ${v===undefined?'nothing':fmt(v,true)} as input; it wants a number`);return n}
+  bool(v,nm){const s=String(v).toLowerCase();if(s==='true')return true;if(s==='false')return false;throw new LogoError(`${nm} doesn’t like ${fmt(v,true)} as input; it wants true or false`)}
+  list(v,nm){if(!Array.isArray(v))throw new LogoError(`${nm} wants a list in [brackets], not ${fmt(v,true)}`);return v}
+  color(v,nm){
+    if(Array.isArray(v)){
+      if(v.length!==3)throw new LogoError(`${nm} wants a color list like [255 120 0]`);
+      const [r,g,b]=v.map(x=>Math.max(0,Math.min(255,Math.round(this.num(x,nm)))));return `rgb(${r},${g},${b})`;
+    }
+    const n=asNum(v);if(n!==null)return PAL[((Math.round(n)%16)+16)%16];
+    const s=String(v);
+    if(typeof CSS!=='undefined'&&CSS.supports&&CSS.supports('color',s))return s;
+    if(typeof CSS==='undefined')return s;
+    throw new LogoError(`${nm} doesn’t know the color ${s}`);
+  }
+  emit(op){if(this.ops.length>400000)throw new LogoError('That drawing is too big to show. Try fewer steps.');this.ops.push(op)}
+  takeOps(){const o=this.ops;this.ops=[];return o}
+  moveTo(nx,ny){const T=this.T;if(!isFinite(nx)||!isFinite(ny))throw new LogoError('The turtle can’t go to infinity');this.emit({k:'seg',x1:T.x,y1:T.y,x2:nx,y2:ny,pen:T.pen,color:T.color,size:T.size,h:T.h});T.x=nx;T.y=ny}
+  fd(d){const T=this.T;this.moveTo(T.x+d*Math.sin(T.h*RAD),T.y+d*Math.cos(T.h*RAD))}
+  turn(d){const T=this.T;if(!d)return;this.emit({k:'turn',h1:T.h,d});T.h=normH(T.h+d)}
+  seth(a){let d=normH(a)-this.T.h;if(d>180)d-=360;if(d<=-180)d+=360;this.turn(d)}
+  penState(){const T=this.T;this.emit({k:'pen',pen:T.pen,color:T.color})}
+
+  lookup(name){
+    for(let k=this.frames.length-1;k>=0;k--){const f=this.frames[k];if(f.has(name)){const v=f.get(name);if(v===undefined)break;return v}}
+    if(this.globals.has(name))return this.globals.get(name);
+    throw new LogoError(`${name} has no value. Set it with MAKE "${name} …, or give it as an input`);
+  }
+  setVar(name,v){
+    for(let k=this.frames.length-1;k>=0;k--){if(this.frames[k].has(name)){this.frames[k].set(name,v);return}}
+    this.globals.set(name,v);
+  }
+  arity(name){const p=P[name];if(p)return p.arity;const u=this.procs.get(name);return u?u.params.length:-1}
+
+  execText(text){
+    this.frames=[];this.rep=[];this.depth=0;this.steps=0;
+    const words=parseWords(text);
+    const main=[],defined=[];
+    for(let i=0;i<words.length;i++){
+      const w=words[i];
+      if(typeof w==='string'&&w.toLowerCase()==='to'){
+        const name=words[i+1];
+        if(typeof name!=='string'||!name||name[0]===':'||name[0]==='"')throw new LogoError('TO needs a procedure name, like TO SQUARE');
+        const lname=name.toLowerCase();
+        if(P[lname])throw new LogoError(`${name.toUpperCase()} is already a built-in command; choose another name`);
+        let j=i+2;const params=[];
+        while(j<words.length&&typeof words[j]==='string'&&words[j][0]===':'){params.push(words[j].slice(1).toLowerCase());j++}
+        const body=[];
+        while(j<words.length&&!(typeof words[j]==='string'&&words[j].toLowerCase()==='end')){
+          if(typeof words[j]==='string'&&words[j].toLowerCase()==='to')throw new LogoError(`${name.toUpperCase()} needs an END before the next TO`);
+          body.push(words[j]);j++;
+        }
+        if(j>=words.length)throw new LogoError(`${name.toUpperCase()} needs an END`);
+        this.procs.set(lname,{name,params,body});defined.push(name);i=j;
+      }else main.push(w);
+    }
+    try{this.runList(main,false)}
+    catch(e){if(e instanceof StopSig){if(e.has)throw new LogoError('OUTPUT only works inside a procedure');}else throw e}
+    return defined;
+  }
+
+  runList(list,wantValue){
+    const toks=tokenize(list),st={toks,i:0};
+    while(st.i<toks.length){
+      const v=this.evalExpr(st);
+      if(v!==undefined){
+        if(wantValue&&st.i>=toks.length)return v;
+        throw new LogoError(`You don’t say what to do with ${fmt(v,true)}`);
+      }
+    }
+    return undefined;
+  }
+  argExpr(st,nm){
+    const t=st.toks[st.i];
+    if(!t||t.t==='rp')throw new LogoError(`Not enough inputs to ${nm}`);
+    const v=this.evalExpr(st);
+    if(v===undefined)throw new LogoError(`A command was used as an input to ${nm}, but it doesn’t output anything`);
+    return v;
+  }
+  peekOp(st,ops){const t=st.toks[st.i];return t&&t.t==='op'&&ops.includes(t.v)}
+  need(v,op){if(v===undefined)throw new LogoError(`${op} needs a value on its left`);return v}
+  evalExpr(st,left){
+    let l=this.additive(st,left);
+    while(this.peekOp(st,['=','<','>','<=','>=','<>'])){
+      const op=st.toks[st.i++].v;this.need(l,op);const r=this.additive(st);this.need(r,op);
+      if(op==='=')l=TF(eq(l,r));else if(op==='<>')l=TF(!eq(l,r));
+      else{const a=this.num(l,op),b=this.num(r,op);l=TF(op==='<'?a<b:op==='>'?a>b:op==='<='?a<=b:a>=b)}
+    }
+    return l;
+  }
+  additive(st,left){
+    let l=this.mult(st,left);
+    while(this.peekOp(st,['+','-'])){
+      const op=st.toks[st.i++].v;const a=this.num(this.need(l,op),op),b=this.num(this.mult(st),op);
+      l=op==='+'?a+b:a-b;
+    }
+    return l;
+  }
+  mult(st,left){
+    let l=left!==undefined?left:this.unary(st);
+    while(this.peekOp(st,['*','/'])){
+      const op=st.toks[st.i++].v;const a=this.num(this.need(l,op),op),b=this.num(this.unary(st),op);
+      if(op==='/'&&b===0)throw new LogoError('Can’t divide by zero');
+      l=op==='*'?a*b:a/b;
+    }
+    return l;
+  }
+  unary(st){
+    const t=st.toks[st.i];
+    if(t&&t.t==='neg'){st.i++;return -this.num(this.unary(st),'-')}
+    return this.primary(st);
+  }
+  primary(st){
+    if(++this.steps>3e6)throw new LogoError('Stopped after 3 million steps. Is there a loop that never ends?');
+    const t=st.toks[st.i];
+    if(!t)throw new LogoError('Something is missing at the end');
+    st.i++;
+    switch(t.t){
+      case 'num':case 'quote':return t.v;
+      case 'list':return t.v;
+      case 'var':return this.lookup(t.v);
+      case 'rp':throw new LogoError('There is a ) without a matching (');
+      case 'op':throw new LogoError(`${t.v} needs a value on its left`);
+      case 'lp':{
+        const n=st.toks[st.i];let v;
+        if(n&&n.t==='word'&&this.arity(n.v.toLowerCase())>=0){
+          st.i++;const name=n.v.toLowerCase(),nm=n.v.toUpperCase(),args=[];
+          while(st.toks[st.i]&&st.toks[st.i].t!=='rp'&&st.toks[st.i].t!=='op')args.push(this.argExpr(st,nm));
+          v=this.call(name,args,true,nm);
+          if(st.toks[st.i]&&st.toks[st.i].t==='op')v=this.evalExpr(st,v);
+        }else v=this.evalExpr(st);
+        if(!st.toks[st.i]||st.toks[st.i].t!=='rp')throw new LogoError('A ( is missing its )');
+        st.i++;return v;
+      }
+      case 'word':{
+        const name=t.v.toLowerCase(),nm=t.v.toUpperCase();
+        if(name==='to'||name==='end')throw new LogoError(`${nm} belongs at the start of a procedure definition, not inside a line`);
+        const n=this.arity(name);
+        if(n<0)throw new LogoError(`I don’t know how to ${t.v}`);
+        const args=[];
+        for(let k=0;k<n;k++)args.push(this.argExpr(st,nm));
+        return this.call(name,args,false,nm);
+      }
+    }
+  }
+  call(name,args,paren,nm){
+    const p=P[name];
+    if(p){
+      if(paren){
+        if(args.length<p.min)throw new LogoError(`Not enough inputs to ${nm}`);
+        if(args.length>p.max)throw new LogoError(`Too many inputs to ${nm}`);
+      }
+      return p.fn(args,this,nm);
+    }
+    const u=this.procs.get(name);
+    if(paren&&args.length!==u.params.length)throw new LogoError(`${nm} wants ${u.params.length} input${u.params.length===1?'':'s'}`);
+    if(++this.depth>1200)throw new LogoError(`Too much recursion in ${nm}. Does it have a stop rule, like IF :SIZE < 2 [STOP]?`);
+    const f=new Map();u.params.forEach((q,i)=>f.set(q,args[i]));
+    this.frames.push(f);
+    try{this.runList(u.body,false);return undefined}
+    catch(e){if(e instanceof StopSig)return e.has?e.v:undefined;throw e}
+    finally{this.frames.pop();this.depth--}
+  }
+}
+
+/* ---- primitives ---- */
+const N=(I,nm)=>v=>I.num(v,nm);
+// turtle
+def('forward fd',1,(a,I,nm)=>{I.fd(I.num(a[0],nm))});
+def('back bk',1,(a,I,nm)=>{I.fd(-I.num(a[0],nm))});
+def('right rt',1,(a,I,nm)=>{I.turn(I.num(a[0],nm))});
+def('left lt',1,(a,I,nm)=>{I.turn(-I.num(a[0],nm))});
+def('penup pu',0,(a,I)=>{I.T.pen=false;I.penState()});
+def('pendown pd',0,(a,I)=>{I.T.pen=true;I.penState()});
+def('home',0,(a,I)=>{I.moveTo(0,0);I.seth(0)});
+def('clearscreen cs',0,(a,I)=>{I.emit({k:'clear',home:true});I.T.x=0;I.T.y=0;I.T.h=0});
+def('clean',0,(a,I)=>{I.emit({k:'clear',home:false})});
+def('setxy',2,(a,I,nm)=>{I.moveTo(I.num(a[0],nm),I.num(a[1],nm))});
+def('setpos',1,(a,I,nm)=>{const l=I.list(a[0],nm);I.moveTo(I.num(l[0],nm),I.num(l[1],nm))});
+def('setx',1,(a,I,nm)=>{I.moveTo(I.num(a[0],nm),I.T.y)});
+def('sety',1,(a,I,nm)=>{I.moveTo(I.T.x,I.num(a[0],nm))});
+def('setheading seth',1,(a,I,nm)=>{I.seth(I.num(a[0],nm))});
+def('hideturtle ht',0,(a,I)=>{I.T.vis=false;I.emit({k:'vis',v:false})});
+def('showturtle st',0,(a,I)=>{I.T.vis=true;I.emit({k:'vis',v:true})});
+def('setpencolor setpc setcolor',1,(a,I,nm)=>{I.T.color=I.color(a[0],nm);I.penState()});
+def('setpensize setwidth',1,(a,I,nm)=>{const v=Array.isArray(a[0])?a[0][0]:a[0];I.T.size=Math.max(.1,I.num(v,nm))});
+def('setbackground setbg',1,(a,I,nm)=>{I.emit({k:'bg',color:I.color(a[0],nm)})});
+def('arc',2,(a,I,nm)=>{const ang=I.num(a[0],nm),r=I.num(a[1],nm);const T=I.T;if(ang)I.emit({k:'arc',cx:T.x,cy:T.y,r:Math.abs(r),a0:T.h,a:ang,color:T.color,size:T.size,pen:T.pen})});
+def('label',1,(a,I)=>{const T=I.T;I.emit({k:'label',text:fmt(a[0],false),x:T.x,y:T.y,color:T.color})});
+def('wait',1,(a,I,nm)=>{I.emit({k:'wait',frames:Math.max(0,Math.round(I.num(a[0],nm)))})});
+def('xcor',0,(a,I)=>I.T.x);
+def('ycor',0,(a,I)=>I.T.y);
+def('heading',0,(a,I)=>I.T.h);
+def('pos',0,(a,I)=>[I.T.x,I.T.y]);
+def('towards',1,(a,I,nm)=>{const l=I.list(a[0],nm);return normH(Math.atan2(I.num(l[0],nm)-I.T.x,I.num(l[1],nm)-I.T.y)/RAD)});
+def('distance',1,(a,I,nm)=>{const l=I.list(a[0],nm);return Math.hypot(I.num(l[0],nm)-I.T.x,I.num(l[1],nm)-I.T.y)});
+def('pendownp',0,(a,I)=>TF(I.T.pen));
+// control
+def('repeat',2,(a,I,nm)=>{
+  const n=Math.floor(I.num(a[0],nm)),body=I.list(a[1],nm);
+  I.rep.push(0);
+  try{for(let k=1;k<=n;k++){I.rep[I.rep.length-1]=k;I.runList(body,false)}}finally{I.rep.pop()}
+});
+def('forever',1,(a,I,nm)=>{const body=I.list(a[0],nm);I.rep.push(0);try{for(let k=1;;k++){I.rep[I.rep.length-1]=k;I.runList(body,false)}}finally{I.rep.pop()}});
+def('repcount #',0,(a,I)=>I.rep.length?I.rep[I.rep.length-1]:-1);
+def('if',2,(a,I,nm)=>{if(a.length===3)return I.runList(I.list(I.bool(a[0],nm)?a[1]:a[2],nm),true);if(I.bool(a[0],nm))return I.runList(I.list(a[1],nm),true)},2,3);
+def('ifelse',3,(a,I,nm)=>I.runList(I.list(I.bool(a[0],nm)?a[1]:a[2],nm),true));
+def('while',2,(a,I,nm)=>{const c=I.list(a[0],nm),b=I.list(a[1],nm);while(I.bool(I.runList(c,true),nm))I.runList(b,false)});
+def('until',2,(a,I,nm)=>{const c=I.list(a[0],nm),b=I.list(a[1],nm);while(!I.bool(I.runList(c,true),nm))I.runList(b,false)});
+def('for',2,(a,I,nm)=>{
+  const c=I.list(a[0],nm),body=I.list(a[1],nm);
+  if(c.length<3)throw new LogoError('FOR wants a list like [i 1 10] or [i 1 10 2]');
+  const v=String(c[0]).toLowerCase(),st={toks:tokenize(c.slice(1)),i:0};
+  const s=I.num(I.argExpr(st,nm),nm),e=I.num(I.argExpr(st,nm),nm);
+  const step=st.i<st.toks.length?I.num(I.argExpr(st,nm),nm):(e>=s?1:-1);
+  if(step===0)throw new LogoError('FOR can’t count by 0');
+  const f=new Map();I.frames.push(f);
+  try{for(let k=0;;k++){const x=s+k*step;if(step>0?x>e+1e-9:x<e-1e-9)break;f.set(v,x);I.runList(body,false)}}
+  finally{I.frames.pop()}
+});
+def('stop',0,()=>{throw new StopSig(undefined,false)});
+def('output op',1,a=>{throw new StopSig(a[0],true)});
+def('run',1,(a,I)=>I.runList(Array.isArray(a[0])?a[0]:[a[0]],true));
+def('make',2,(a,I)=>{I.setVar(String(a[0]).toLowerCase(),a[1])});
+def('local',1,(a,I)=>{const f=I.frames[I.frames.length-1];for(const n of (Array.isArray(a[0])?a[0]:a)){const k=String(n).toLowerCase();if(f)f.set(k,undefined)}},1,Infinity);
+def('thing',1,(a,I)=>I.lookup(String(a[0]).toLowerCase()));
+def('print pr',1,(a,I)=>{I.out(a.map(x=>fmt(x,false)).join(' '))},1,Infinity);
+def('show',1,(a,I)=>{I.out(a.map(x=>fmt(x,true)).join(' '))},1,Infinity);
+def('type',1,(a,I)=>{I.out(a.map(x=>fmt(x,false)).join(''),true)},1,Infinity);
+def('true',0,()=>'true');
+def('false',0,()=>'false');
+// math
+def('sum',2,(a,I,nm)=>a.map(N(I,nm)).reduce((x,y)=>x+y,0),0,Infinity);
+def('product',2,(a,I,nm)=>a.map(N(I,nm)).reduce((x,y)=>x*y,1),0,Infinity);
+def('difference',2,(a,I,nm)=>I.num(a[0],nm)-I.num(a[1],nm));
+def('quotient',2,(a,I,nm)=>{const x=a.length===1?1:I.num(a[0],nm),y=I.num(a[a.length-1],nm);if(y===0)throw new LogoError('Can’t divide by zero');return x/y},1,2);
+def('remainder',2,(a,I,nm)=>{const y=I.num(a[1],nm);if(y===0)throw new LogoError('Can’t divide by zero');return I.num(a[0],nm)%y});
+def('modulo',2,(a,I,nm)=>{const x=I.num(a[0],nm),y=I.num(a[1],nm);if(y===0)throw new LogoError('Can’t divide by zero');return((x%y)+y)%y});
+def('minus',1,(a,I,nm)=>-I.num(a[0],nm));
+def('abs',1,(a,I,nm)=>Math.abs(I.num(a[0],nm)));
+def('int',1,(a,I,nm)=>Math.trunc(I.num(a[0],nm)));
+def('round',1,(a,I,nm)=>Math.round(I.num(a[0],nm)));
+def('sqrt',1,(a,I,nm)=>{const x=I.num(a[0],nm);if(x<0)throw new LogoError('SQRT can’t take a negative number');return Math.sqrt(x)});
+def('power',2,(a,I,nm)=>Math.pow(I.num(a[0],nm),I.num(a[1],nm)));
+def('exp',1,(a,I,nm)=>Math.exp(I.num(a[0],nm)));
+def('ln',1,(a,I,nm)=>Math.log(I.num(a[0],nm)));
+def('log10',1,(a,I,nm)=>Math.log10(I.num(a[0],nm)));
+def('sin',1,(a,I,nm)=>Math.sin(I.num(a[0],nm)*RAD));
+def('cos',1,(a,I,nm)=>Math.cos(I.num(a[0],nm)*RAD));
+def('tan',1,(a,I,nm)=>Math.tan(I.num(a[0],nm)*RAD));
+def('arctan',1,(a,I,nm)=>a.length===2?Math.atan2(I.num(a[1],nm),I.num(a[0],nm))/RAD:Math.atan(I.num(a[0],nm))/RAD,1,2);
+def('pi',0,()=>Math.PI);
+def('random',1,(a,I,nm)=>{
+  if(a.length===2){const lo=Math.ceil(I.num(a[0],nm)),hi=Math.floor(I.num(a[1],nm));return lo+Math.floor(Math.random()*(hi-lo+1))}
+  const n=Math.floor(I.num(a[0],nm));if(n<1)throw new LogoError('RANDOM wants a number of at least 1');return Math.floor(Math.random()*n)},1,2);
+// logic
+def('and',2,(a,I,nm)=>TF(a.every(x=>I.bool(x,nm))),0,Infinity);
+def('or',2,(a,I,nm)=>TF(a.some(x=>I.bool(x,nm))),0,Infinity);
+def('not',1,(a,I,nm)=>TF(!I.bool(a[0],nm)));
+def('equalp equal?',2,a=>TF(eq(a[0],a[1])));
+def('lessp less?',2,(a,I,nm)=>TF(I.num(a[0],nm)<I.num(a[1],nm)));
+def('greaterp greater?',2,(a,I,nm)=>TF(I.num(a[0],nm)>I.num(a[1],nm)));
+def('numberp number?',1,a=>TF(asNum(a[0])!==null&&!Array.isArray(a[0])));
+def('wordp word?',1,a=>TF(!Array.isArray(a[0])));
+def('listp list?',1,a=>TF(Array.isArray(a[0])));
+def('emptyp empty?',1,a=>TF(Array.isArray(a[0])?a[0].length===0:String(a[0])===''));
+def('memberp member?',2,a=>TF(Array.isArray(a[1])?a[1].some(x=>eq(x,a[0])):String(a[1]).toLowerCase().includes(String(a[0]).toLowerCase())));
+// words and lists
+const seq=(v,nm)=>{if(Array.isArray(v))return v;return String(typeof v==='number'?fmtNum(v):v)};
+const emptyCheck=(s,nm)=>{if(!s.length)throw new LogoError(`${nm} doesn’t like an empty input`)};
+const unword=x=>typeof x==='string'&&NUMRE.test(x)?Number(x):x;
+def('first',1,(a,I,nm)=>{const s=seq(a[0]);emptyCheck(s,nm);return unword(s[0])});
+def('last',1,(a,I,nm)=>{const s=seq(a[0]);emptyCheck(s,nm);return unword(s[s.length-1])});
+def('butfirst bf',1,(a,I,nm)=>{const s=seq(a[0]);emptyCheck(s,nm);return unword(s.slice(1))});
+def('butlast bl',1,(a,I,nm)=>{const s=seq(a[0]);emptyCheck(s,nm);return unword(s.slice(0,-1))});
+def('item',2,(a,I,nm)=>{const n=Math.floor(I.num(a[0],nm)),s=seq(a[1]);if(n<1||n>s.length)throw new LogoError(`${nm}: there is no item ${n} in ${fmt(a[1],true)}`);return unword(s[n-1])});
+def('count',1,a=>seq(a[0]).length);
+def('pick',1,(a,I,nm)=>{const s=seq(a[0]);emptyCheck(s,nm);return unword(s[Math.floor(Math.random()*s.length)])});
+def('list',2,a=>a.slice(),0,Infinity);
+def('sentence se',2,a=>a.flatMap(x=>Array.isArray(x)?x:[x]),0,Infinity);
+def('fput',2,(a,I,nm)=>[a[0],...I.list(a[1],nm)]);
+def('lput',2,(a,I,nm)=>[...I.list(a[1],nm),a[0]]);
+def('word',2,(a,I,nm)=>unword(a.map(x=>{if(Array.isArray(x))throw new LogoError(`${nm} can’t join lists`);return fmt(x)}).join('')),0,Infinity);
+/*LOGO-END*/
+
+/* ================= Examples ================= */
+const EXAMPLES={
+"Squares":`; Press Run, then change a number and run again.
+
+to square :size
+  repeat 4 [fd :size rt 90]
+end
+
+cs
+repeat 12 [square 120 rt 30]`,
+"Polygons":`; A polygon is the same step and turn, again and again.
+; The turns always add up to 360 degrees: watch "turned".
+
+to poly :sides :size
+  repeat :sides [fd :size rt 360 / :sides]
+end
+
+cs ht
+pu setxy -210 -40 pd  poly 3 110
+pu setxy -60 -40 pd   poly 5 70
+pu setxy 90 -40 pd    poly 8 45
+pu home pd st`,
+"Polyspi":`; POLYSPI: step a little further each time you turn.
+; Try angles of 90, 117, 120, 144.
+
+to polyspi :side :angle :inc
+  if :side > 320 [stop]
+  fd :side rt :angle
+  polyspi :side + :inc :angle :inc
+end
+
+cs ht
+setpc [40 110 190]
+polyspi 2 117 2`,
+"Inspi":`; INSPI: keep the step the same, grow the angle.
+; It closes up when the total turning reaches a whole number of turns.
+
+cs ht
+setpc [170 60 130]
+pu setxy -30 -90 pd
+make "angle 2
+repeat 360 [fd 7 rt :angle make "angle :angle + 7]`,
+"Flower":`; Curves are just many tiny steps and turns.
+
+to petal
+  repeat 2 [repeat 18 [fd 7 rt 5] rt 90]
+end
+
+cs ht setpensize 2
+repeat 12 [
+  setpc item 1 + remainder repcount 3 [[210 60 90] [230 140 40] [140 70 170]]
+  petal rt 30
+]
+setpc [60 130 70] setpensize 4
+rt 180 fd 150`,
+"Tree":`; A tree is a trunk with two smaller trees on top.
+
+to tree :size :depth
+  if :depth = 0 [stop]
+  branch :depth fd :size
+  lt 25 tree :size * 0.72 :depth - 1
+  rt 50 tree :size * 0.72 :depth - 1
+  lt 25
+  branch :depth bk :size
+end
+
+to branch :depth
+  setpensize :depth / 1.4
+  setpc ifelse :depth < 3 [[70 150 80]] [[120 80 45]]
+end
+
+cs ht
+pu setxy 0 -200 pd
+tree 110 10`,
+"Snowflake":`; Koch snowflake: every side becomes four smaller sides.
+
+to side :size :level
+  if :level = 0 [fd :size stop]
+  side :size / 3 :level - 1  lt 60
+  side :size / 3 :level - 1  rt 120
+  side :size / 3 :level - 1  lt 60
+  side :size / 3 :level - 1
+end
+
+to snowflake :size :level
+  repeat 3 [side :size :level rt 120]
+end
+
+cs ht
+setpc [40 120 200]
+pu setxy -150 90 seth 90 pd
+snowflake 300 4`,
+"Dragon":`; The dragon curve: fold a strip of paper in half again and again.
+
+to dragon :size :level :dir
+  if :level = 0 [fd :size stop]
+  dragon :size :level - 1 1
+  rt 90 * :dir
+  dragon :size :level - 1 -1
+end
+
+cs ht
+setpc [200 70 50]
+pu setxy 130 50 seth 90 pd
+dragon 5 12 1`,
+"Random walk":`; A turtle wandering, with a new color every hundred steps.
+
+cs setpensize 2
+repeat 1500 [
+  if (remainder repcount 100) = 1 [setpc 1 + random 6]
+  fd 6 rt (random 90) - 45
+]`
+};
+
+/* ================= App ================= */
+if(typeof document!=='undefined'){
+const $=s=>document.querySelector(s);
+const editor=$('#editor'),logEl=$('#log'),cmd=$('#cmd'),speed=$('#speed'),speedOut=$('#speedOut');
+const btnRun=$('#run'),btnStop=$('#stop'),paper=$('#paper');
+const cvG=$('#cvGrid'),cvI=$('#cvInk'),cvT=$('#cvTurtle');
+const g=cvG.getContext('2d'),ink=cvI.getContext('2d'),tc=cvT.getContext('2d');
+const I=new Interp();
+
+/* log */
+function log(text,cls){
+  const p=document.createElement('p');if(cls)p.className=cls;
+  if(text instanceof Node)p.append(text);else p.textContent=text;
+  logEl.append(p);while(logEl.childNodes.length>300)logEl.firstChild.remove();
+  logEl.scrollTop=logEl.scrollHeight;return p;
+}
+let typeLine=null;
+I.out=(s,cont)=>{if(typeLine&&typeLine===logEl.lastChild){typeLine.textContent+=s;if(!cont)typeLine=null;logEl.scrollTop=logEl.scrollHeight;return}const p=log(s,'out');typeLine=cont?p:null};
+
+/* renderer */
+const R={W:0,H:0,dpr:1,baseZ:1,userZoom:1,z:1,px:0,py:0,history:[],queue:[],cur:null,bg:null,running:false,
+  sprite:{x:0,y:0,h:0,vis:true,pen:true,color:null,turned:0}};
+let C={};
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function readColors(){C={paper:css('--paper'),grid:css('--grid'),major:css('--grid-major'),axis:css('--axis'),ink:css('--ink'),shell:css('--shell'),edge:css('--shell-edge'),skin:css('--skin')}}
+const sx=x=>R.W/2+R.px+x*R.z, sy=y=>R.H/2+R.py-y*R.z;
+
+function resize(){
+  const r=paper.getBoundingClientRect();R.W=r.width;R.H=r.height;R.dpr=window.devicePixelRatio||1;
+  for(const cv of [cvG,cvI,cvT]){cv.width=Math.max(1,Math.round(R.W*R.dpr));cv.height=Math.max(1,Math.round(R.H*R.dpr));cv.getContext('2d').setTransform(R.dpr,0,0,R.dpr,0,0)}
+  R.baseZ=Math.max(.5,Math.min(1.6,Math.min(R.W,R.H)/540));
+  R.z=R.baseZ*R.userZoom;redrawAll();
+}
+function drawGrid(){
+  g.clearRect(0,0,R.W,R.H);
+  g.fillStyle=R.bg||C.paper;g.fillRect(0,0,R.W,R.H);
+  if(R.bg)return;
+  const step=10*R.z;if(step<4)return;
+  /* Which lines fall inside the paper, once the page has been dragged about. */
+  const x0=Math.ceil((-R.W/2-R.px)/step),x1=Math.floor((R.W/2-R.px)/step);
+  const y0=Math.ceil((R.py-R.H/2)/step),y1=Math.floor((R.py+R.H/2)/step);
+  g.lineWidth=1;
+  for(const pass of ['minor','major','axis']){
+    g.strokeStyle=pass==='minor'?C.grid:pass==='major'?C.major:C.axis;g.beginPath();
+    for(let k=x0;k<=x1;k++){const kind=k===0?'axis':k%5===0?'major':'minor';if(kind!==pass)continue;const x=Math.round(sx(k*10))+.5;g.moveTo(x,0);g.lineTo(x,R.H)}
+    for(let k=y0;k<=y1;k++){const kind=k===0?'axis':k%5===0?'major':'minor';if(kind!==pass)continue;const y=Math.round(sy(k*10))+.5;g.moveTo(0,y);g.lineTo(R.W,y)}
+    g.stroke();
+  }
+}
+function strokeSetup(op){ink.strokeStyle=op.color||C.ink;ink.fillStyle=op.color||C.ink;ink.lineWidth=Math.max(.6,op.size*R.z);ink.lineCap='round';ink.lineJoin='round'}
+function drawPart(op,a,b){
+  if(op.k==='seg'){
+    if(!op.pen||b<=a)return;
+    const dx=op.x2-op.x1,dy=op.y2-op.y1;strokeSetup(op);ink.beginPath();
+    ink.moveTo(sx(op.x1+dx*a),sy(op.y1+dy*a));ink.lineTo(sx(op.x1+dx*b),sy(op.y1+dy*b));ink.stroke();
+  }else if(op.k==='arc'){
+    if(!op.pen||b<=a||op.r===0)return;
+    strokeSetup(op);ink.beginPath();
+    const s=(op.a0-90+op.a*a)*RAD,e=(op.a0-90+op.a*b)*RAD;
+    ink.arc(sx(op.cx),sy(op.cy),op.r*R.z,s,e,op.a<0);ink.stroke();
+  }else if(op.k==='label'){
+    ink.fillStyle=op.color||C.ink;ink.font=`${Math.round(14*Math.max(.8,R.z))}px ${css('--mono')}`;ink.textBaseline='bottom';
+    ink.fillText(op.text,sx(op.x)+4,sy(op.y)-4);
+  }
+}
+function redrawAll(){
+  readColors();drawGrid();ink.clearRect(0,0,R.W,R.H);
+  for(const op of R.history)drawPart(op,0,1);
+  if(R.cur&&R.cur.t>0)drawPart(R.cur,0,R.cur.t);
+  drawTurtle();
+}
+function segLen(op){return Math.hypot(op.x2-op.x1,op.y2-op.y1)}
+function cost(op){
+  switch(op.k){
+    case 'seg':return segLen(op);
+    case 'turn':return Math.abs(op.d)*.55;
+    case 'arc':return Math.abs(op.a)*RAD*Math.max(op.r,20);
+    default:return 0;
+  }
+}
+function applyPartial(op,t){
+  const s=R.sprite;
+  if(op.k==='seg'){s.x=op.x1+(op.x2-op.x1)*t;s.y=op.y1+(op.y2-op.y1)*t;s.h=op.h;s.pen=op.pen;s.color=op.color}
+  else if(op.k==='turn'){s.h=normH(op.h1+op.d*t)}
+}
+function finish(op){
+  const s=R.sprite;
+  applyPartial(op,1);
+  switch(op.k){
+    case 'turn':s.turned+=op.d;break;
+    case 'seg':if(op.pen)R.history.push(op);break;
+    case 'arc':if(op.pen)R.history.push(op);break;
+    case 'label':drawPart(op,0,1);R.history.push(op);break;
+    case 'clear':
+      ink.clearRect(0,0,R.W,R.H);R.history=[];
+      if(op.home){s.x=0;s.y=0;s.h=0;s.turned=0}
+      break;
+    case 'bg':R.bg=op.color;drawGrid();break;
+    case 'vis':s.vis=op.v;break;
+    case 'pen':s.pen=op.pen;s.color=op.color;break;
+  }
+  R.cur=null;
+}
+const SPEEDS=[1.5,3,6,12,24,55,130,320,900,Infinity];
+function frame(){
+  let budget=SPEEDS[speed.value-1];
+  const instant=budget===Infinity,t0=performance.now();
+  let n=0;
+  while(R.cur||R.queue.length){
+    if(!R.cur){R.cur=R.queue.shift();R.cur.t=0}
+    const op=R.cur;
+    if(op.k==='wait'){
+      if(instant){R.cur=null;continue}
+      if(op.left===undefined)op.left=op.frames;
+      if(op.left-->0)break;
+      R.cur=null;continue;
+    }
+    const c=cost(op);
+    if(instant||c===0){drawPart(op,op.t,1);finish(op);if(instant&&(++n&1023)===0&&performance.now()-t0>14)break;continue}
+    if(budget<=0)break;
+    const remain=(1-op.t)*c,use=Math.min(remain,budget),nt=use>=remain?1:op.t+use/c;
+    drawPart(op,op.t,nt);op.t=nt;budget-=use;
+    if(nt>=1)finish(op);else applyPartial(op,nt);
+  }
+  drawTurtle();updateReadout();
+  if(R.cur||R.queue.length)requestAnimationFrame(frame);
+  else{R.running=false;btnStop.disabled=true}
+}
+function kick(){if(!R.running&&(R.cur||R.queue.length)){R.running=true;btnStop.disabled=false;requestAnimationFrame(frame)}}
+
+function drawTurtle(){
+  tc.clearRect(0,0,R.W,R.H);
+  const s=R.sprite;if(!s.vis)return;
+  const k=10*Math.max(.8,Math.min(1.4,R.z));
+  tc.save();tc.translate(sx(s.x),sy(s.y));tc.rotate(s.h*RAD);
+  tc.fillStyle=C.skin;
+  for(const [lx,ly] of [[-.82,-.52],[.82,-.52],[-.76,.6],[.76,.6]]){tc.beginPath();tc.ellipse(lx*k,ly*k,.34*k,.25*k,0,0,7);tc.fill()}
+  tc.beginPath();tc.moveTo(-.16*k,.9*k);tc.lineTo(0,1.32*k);tc.lineTo(.16*k,.9*k);tc.fill();
+  tc.beginPath();tc.ellipse(0,-1.16*k,.34*k,.42*k,0,0,7);tc.fill();
+  tc.fillStyle=C.shell;tc.strokeStyle=C.edge;tc.lineWidth=1.3;
+  tc.beginPath();tc.ellipse(0,0,.8*k,1*k,0,0,7);tc.fill();tc.stroke();
+  tc.beginPath();tc.lineWidth=.9;
+  for(let i=0;i<6;i++){const a=(i*60+30)*RAD,px=Math.cos(a)*.42*k,py=Math.sin(a)*.5*k;tc.moveTo(px,py);tc.lineTo(Math.cos(a)*.8*k,Math.sin(a)*1*k)}
+  tc.stroke();
+  tc.beginPath();tc.arc(0,0,.24*k,0,7);
+  if(s.pen){tc.fillStyle=s.color||C.ink;tc.fill();tc.lineWidth=1;tc.strokeStyle=C.edge;tc.stroke()}
+  else{tc.lineWidth=1.6;tc.strokeStyle=C.ink;tc.stroke()}
+  tc.restore();
+}
+const rx=$('#rx'),ry=$('#ry'),rh=$('#rh'),rt=$('#rt'),rp=$('#rp');let lastRead='';
+const f1=v=>{const r=Math.round(v*10)/10;return (Object.is(r,-0)?0:r).toString().replace('-','−')};
+function updateReadout(){
+  const s=R.sprite,key=[f1(s.x),f1(s.y),f1(s.h),f1(s.turned),s.pen].join('|');
+  if(key===lastRead)return;lastRead=key;
+  rx.textContent=f1(s.x);ry.textContent=f1(s.y);rh.textContent=f1(s.h)+'°';rt.textContent=f1(s.turned)+'°';rp.textContent=s.pen?'down':'up';
+}
+
+/* running code */
+function execute(text){
+  let defined=[];
+  try{defined=I.execText(text)}
+  catch(e){
+    if(e instanceof LogoError)log(e.message,'err');
+    else if(e instanceof RangeError)log('Too much recursion. Does your procedure have a stop rule, like IF :SIZE < 2 [STOP]?','err');
+    else{log('Something went wrong: '+e.message,'err');console.error(e)}
+  }
+  const ops=I.takeOps();
+  R.queue.push(...ops);kick();showProcs();
+  return defined;
+}
+function showProcs(){
+  const el=$('#procs');el.textContent='';
+  if(!I.procs.size)return;
+  el.append('Your procedures: ');
+  [...I.procs.values()].forEach((p,i)=>{if(i)el.append(', ');const c=document.createElement('code');c.textContent=p.name+(p.params.length?' :'+p.params.join(' :'):'');el.append(c)});
+}
+function runEditor(){execute(editor.value)}
+function stopAll(){
+  if(R.cur){if(R.cur.k==='seg'||R.cur.k==='arc'){const op=R.cur;if(op.pen&&op.t>0){if(op.k==='seg'){R.history.push({...op,x2:op.x1+(op.x2-op.x1)*op.t,y2:op.y1+(op.y2-op.y1)*op.t})}else R.history.push({...op,a:op.a*op.t})}}R.cur=null}
+  // replay remaining zero-cost state (pen, visibility) is dropped; sync interpreter to what you see
+  R.queue=[];
+  const s=R.sprite;Object.assign(I.T,{x:s.x,y:s.y,h:s.h,pen:s.pen,color:s.color,vis:s.vis});
+  log('Stopped.','note');drawTurtle();updateReadout();
+}
+
+btnRun.addEventListener('click',runEditor);
+btnStop.addEventListener('click',stopAll);
+editor.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();runEditor();return}
+  if(e.key==='Tab'&&!e.shiftKey){e.preventDefault();const s=editor.selectionStart,en=editor.selectionEnd;editor.setRangeText('  ',s,en,'end');save()}
+});
+let saveT;function save(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem('turtle-program',editor.value)}catch(e){}},400)}
+editor.addEventListener('input',save);
+
+const hist=[];let hi=0;
+cmd.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    const line=cmd.value.trim();if(!line)return;
+    hist.push(line);hi=hist.length;cmd.value='';log('? '+line,'echo');
+    const d=execute(line);if(d.length)log(d.join(', ')+' defined.','note');
+  }else if(e.key==='ArrowUp'){if(hi>0){hi--;cmd.value=hist[hi];e.preventDefault()}}
+  else if(e.key==='ArrowDown'){if(hi<hist.length){hi++;cmd.value=hist[hi]||'';e.preventDefault()}}
+});
+
+speed.addEventListener('input',()=>{speedOut.textContent=speed.value==='10'?'instant':speed.value});
+
+const sel=$('#examples');
+for(const name of Object.keys(EXAMPLES)){const o=document.createElement('option');o.value=name;o.textContent=name;sel.append(o)}
+sel.addEventListener('change',()=>{
+  const name=sel.value;if(!name)return;sel.value='';
+  const prev=editor.value;
+  editor.value=EXAMPLES[name];save();
+  if(prev.trim()&&!Object.values(EXAMPLES).includes(prev)){
+    const frag=document.createDocumentFragment();const b=document.createElement('button');b.textContent='Put back your program';
+    b.addEventListener('click',()=>{editor.value=prev;save();b.parentElement.textContent='Your program is back in the editor.'});
+    frag.append(`Loaded ${name}. `,b);log(frag,'note');
+  }
+  stopAll();logEl.lastChild&&logEl.lastChild.textContent==='Stopped.'&&logEl.lastChild.remove();
+  runEditor();
+});
+
+/* Zooming about the middle of the paper, which is where the eye is when a button is pressed. */
+function setZoom(next,ax,ay){
+  const was=R.z;R.userZoom=Math.max(.15,Math.min(6,next));R.z=R.baseZ*R.userZoom;
+  /* Whatever was under that spot stays under it, so zooming does not throw the drawing off. */
+  const [mx,my]=[ax===undefined?R.W/2:ax,ay===undefined?R.H/2:ay];
+  R.px=mx-R.W/2-(mx-R.W/2-R.px)*(R.z/was);
+  R.py=my-R.H/2-(my-R.H/2-R.py)*(R.z/was);
+  redrawAll();
+}
+$('#zoomIn').addEventListener('click',()=>setZoom(R.userZoom*1.25));
+$('#zoomOut').addEventListener('click',()=>setZoom(R.userZoom/1.25));
+$('#zoomReset').addEventListener('click',()=>{R.userZoom=1;R.z=R.baseZ;R.px=0;R.py=0;redrawAll()});
+
+/* The paper is dragged about with the mouse, the way any other plane in a geometry program is. */
+let drag=null;
+paper.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.zoom'))return;
+  drag={x:e.clientX,y:e.clientY,px:R.px,py:R.py};
+  paper.setPointerCapture(e.pointerId);paper.style.cursor='grabbing';
+});
+paper.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  R.px=drag.px+(e.clientX-drag.x);R.py=drag.py+(e.clientY-drag.y);redrawAll();
+});
+const letGo=e=>{if(!drag)return;drag=null;paper.style.cursor='';try{paper.releasePointerCapture(e.pointerId)}catch(err){}};
+paper.addEventListener('pointerup',letGo);
+paper.addEventListener('pointercancel',letGo);
+paper.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=paper.getBoundingClientRect();
+  setZoom(R.userZoom*Math.exp(-e.deltaY*0.0014),e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
+
+new ResizeObserver(()=>resize()).observe(paper);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>redrawAll());
+
+let saved=null;try{saved=localStorage.getItem('turtle-program')}catch(e){}
+editor.value=saved||EXAMPLES.Squares;
+log('Type a command at the ? prompt, or press Run to draw the program on the left.','note');
+readColors();resize();updateReadout();
+}
+</script>
+<script>
+if(window.parent!==window)window.addEventListener('keydown',e=>{
+  const t=e.target,typing=t instanceof HTMLElement&&(t.isContentEditable||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&!['range','checkbox','button','color'].includes(t.type)));
+  if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(!['ArrowRight','ArrowLeft','PageDown','PageUp','Home','End','f','F'].includes(e.key))return;
+  e.preventDefault();window.parent.postMessage({deckKey:e.key},'*');
+});
+</script>
+</body>
+</html>

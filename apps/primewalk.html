@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Prime Walk</title>
+<style>
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Regular.woff2) format("woff2");font-weight:400;font-style:normal}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Italic.woff2) format("woff2");font-weight:400;font-style:italic}
+/* The deck's palette: the prime walk in its orange, the random one it is measured against in grey. */
+:root{
+  --bg:#FFFFFF; --surface:#FAFAFB; --ink:#1B1D22; --muted:#9097A1; --rule:#E3E5E9;
+  --pw:#F27305; --rw:#5B6475; --pi:#9097A1; --focus:#F27305;
+  --serif:"KaTeX_Main","Latin Modern Roman","Iowan Old Style",Georgia,serif;
+  --sans:ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-sizing:border-box;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-underline-offset:3px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.wrap{max-width:1700px;margin:0 auto;padding:10px 14px 40px}
+.main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 290px;gap:14px;align-items:start}
+
+/* Two plates, one walk each, the same size so that their sizes can be compared by eye. */
+.plate{position:relative;background:#fff;border:1px solid var(--rule);box-shadow:0 2px 22px rgb(0 0 0 / 5%);border-radius:.6em;overflow:hidden;height:calc(100vh - 24px);min-height:320px}
+.plate canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.plate canvas:active{cursor:grabbing}
+.tag{position:absolute;top:10px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;pointer-events:none;text-shadow:0 0 3px #fff,0 0 3px #fff}
+.tag b{font:400 20px var(--serif)}
+.plate[data-walk="pw"] .tag b{color:var(--pw)}
+.tag span{font-size:.84rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.tag span strong{color:var(--ink);font-weight:500}
+.readout{position:absolute;left:12px;bottom:12px;right:120px;font-size:.8rem;color:var(--ink);text-shadow:0 0 3px #fff,0 0 3px #fff;pointer-events:none;font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;background:rgba(255,255,255,.88);border:1px solid var(--rule);border-radius:5px;padding:2px}
+.seg button{border:0;background:transparent;padding:5px 10px;border-radius:3px;font-size:.84rem;color:var(--muted);cursor:pointer}
+.seg button[aria-pressed="true"]{background:color-mix(in srgb,var(--pw) 12%,transparent);color:var(--pw)}
+.seg button:hover{color:var(--ink)}
+.zoom{position:absolute;right:10px;bottom:10px}
+
+aside{display:flex;flex-direction:column;gap:14px}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:.6em;padding:14px}
+.panel h2{font-family:var(--serif);font-weight:400;font-size:1.15rem;margin:0 0 8px}
+.rule-says{margin:0 0 8px;font-size:.86rem;color:var(--muted)}
+.compass{display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px);gap:2px;margin:0 auto;width:max-content;font-family:var(--serif)}
+.compass span{display:flex;align-items:center;justify-content:center;font-size:1.25rem;border-radius:3px}
+.compass .d{background:#fff;border:1px solid var(--rule)}
+.compass .d small{font-family:var(--sans);font-size:.7rem;color:var(--muted);margin-left:3px}
+.compass .c{color:var(--muted);font-size:.75rem;font-family:var(--sans)}
+.row{display:flex;gap:8px;margin-top:10px}
+.btn{flex:1;padding:7px 12px;border-radius:999px;border:1px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer;transition:background .2s,border-color .2s}
+.btn:hover{background:var(--pw);border-color:var(--pw)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn.ghost:hover{border-color:var(--pw);background:transparent}
+.seg.full{display:flex}
+.seg.full button{flex:1}
+.scale{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted);margin-top:8px}
+.scale i{display:block;flex:1;height:6px;border-radius:2px;background:linear-gradient(90deg,#D5D8DD,#1B1D22,#F27305)}
+
+dl.stats{margin:0;display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:.86rem}
+dl.stats dt{color:var(--muted)}
+dl.stats dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+dl.stats .note{grid-column:1/-1;font-size:.76rem;color:var(--muted);margin-top:-5px;text-align:right;font-weight:400}
+dl.stats hr{grid-column:1/-1;border:0;border-top:1px solid var(--rule);margin:2px 0;width:100%}
+.sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0}
+
+.ticker{display:flex;flex-wrap:wrap;gap:6px;font-variant-numeric:tabular-nums;font-size:.84rem;min-height:28px}
+.ticker span{padding:2px 7px;border:1px solid var(--rule);border-radius:3px;background:#fff}
+.ticker b{font-weight:400;color:var(--pw);font-family:var(--serif);font-size:1rem;margin-left:4px}
+
+.charts{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px;margin-top:14px}
+.charts .panel p{margin:0 0 10px;font-size:.84rem;color:var(--muted);line-height:1.45}
+.chart{width:100%;height:190px;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.8rem;color:var(--muted);margin-top:8px}
+.legend .dash{display:inline-block;width:14px;border-top:2px dashed var(--pi);margin-right:6px;vertical-align:3px}
+.trans{display:grid;grid-template-columns:auto repeat(4,1fr);gap:3px;font-size:.82rem;font-variant-numeric:tabular-nums}
+.trans .h{color:var(--muted);text-align:center;padding:3px 0}
+.trans .rh{color:var(--muted);padding-right:6px;display:flex;align-items:center;justify-content:flex-end}
+.trans .cell{padding:9px 0;text-align:center;border-radius:3px}
+.axis-note{font-size:.76rem;color:var(--muted);margin-top:8px}
+footer{margin-top:24px;color:var(--muted);max-width:80ch;font-family:var(--serif);font-size:.98rem;line-height:1.6}
+
+@media (max-width:1100px){
+  .main{grid-template-columns:1fr 1fr}
+  aside{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .plate{height:70vh}
+  .charts{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .main{grid-template-columns:1fr}
+  .plate{height:60vh}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="main">
+    <div class="plate" data-walk="pw">
+      <canvas aria-label="Grid points visited by the prime walk. Drag to pan, scroll or pinch to zoom." role="img"></canvas>
+      <div class="tag"><b>Prime walk</b><span>area <strong class="area">1</strong></span></div>
+      <div class="readout">Drag to pan, scroll to zoom. Point at a cell to inspect it.</div>
+      <div class="seg zoom" role="group" aria-label="Zoom">
+        <button data-z="in" aria-label="Zoom in">+</button><button data-z="out" aria-label="Zoom out">−</button><button data-z="fit">Fit</button>
+      </div>
+    </div>
+    <div class="plate" data-walk="rw">
+      <canvas aria-label="Grid points visited by the random walk. Drag to pan, scroll or pinch to zoom." role="img"></canvas>
+      <div class="tag"><b>Random walk</b><span>area <strong class="area">1</strong></span></div>
+      <div class="readout">Same number of steps, each direction at random.</div>
+      <div class="seg zoom" role="group" aria-label="Zoom">
+        <button data-z="in" aria-label="Zoom in">+</button><button data-z="out" aria-label="Zoom out">−</button><button data-z="fit">Fit</button>
+      </div>
+    </div>
+
+    <aside>
+      <div class="panel">
+        <h2>The prime walk</h2>
+        <p class="rule-says">Count upward from 1, forever; at each prime take one step, chosen by its last digit.</p>
+        <div class="compass" aria-label="Last digit 1 moves up, 3 down, 7 left, 9 right">
+          <span></span><span class="d">↑<small>1</small></span><span></span>
+          <span class="d">←<small>7</small></span><span class="c">prime</span><span class="d">→<small>9</small></span>
+          <span></span><span class="d">↓<small>3</small></span><span></span>
+        </div>
+        <div class="row">
+          <div class="seg full" role="group" aria-label="Speed">
+            <button data-speed="watch" aria-pressed="true">Watch it grow</button>
+            <button data-speed="fast" aria-pressed="false">As fast as possible</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="seg full" role="group" aria-label="Colour cells by">
+            <button data-color="step" aria-pressed="true">By step</button>
+            <button data-color="z" aria-pressed="false">By visits</button>
+          </div>
+        </div>
+        <div class="scale"><span id="scaleLo">early</span><i></i><span id="scaleHi">late</span></div>
+        <div class="row">
+          <button class="btn" id="go">Pause</button>
+          <button class="btn ghost" id="restart">Restart</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Measurements</h2>
+        <dl class="stats">
+          <dt>Counted up to</dt><dd id="sN">0</dd>
+          <dt>Primes found, π(N)</dt><dd id="sPi">0</dd>
+          <hr>
+          <dt><span class="sw" style="background:var(--pw)"></span>Prime walk area</dt><dd id="sApw">0</dd>
+          <dt><span class="sw" style="background:var(--rw)"></span>Random walk area</dt><dd id="sArw">0</dd>
+          <hr>
+          <dt>π(N) ÷ prime walk area</dt><dd id="sR1">–</dd>
+          <dd class="note">The paper reports about 10</dd>
+          <dt>Random area ÷ prime area</dt><dd id="sR2">–</dd>
+          <dd class="note">The paper reports about 2</dd>
+          <dt>Most visits to one point</dt><dd id="sZ">–</dd>
+          <dd class="note" id="sZnote">Random walk: –</dd>
+        </dl>
+      </div>
+
+      <div class="panel">
+        <h2>Latest steps</h2>
+        <div class="ticker" id="ticker"><span style="color:var(--muted)">Waiting for the first prime</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="charts">
+    <div class="panel">
+      <h2>Area covered as N grows</h2>
+      <p>Distinct grid points each walk has touched. The prime walk stays far more compact than a random walk with the same number of steps. The dashed line is the paper's reported trend of one point per ten primes.</p>
+      <canvas class="chart" id="areaCv" aria-label="Line chart of area covered versus N"></canvas>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--pw)"></span>Prime walk</span>
+        <span><span class="sw" style="background:var(--rw)"></span>Random walk, same step count</span>
+        <span><span class="dash"></span>π(N) ÷ 10</span>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Leading digits of visit counts</h2>
+      <p>How many numbers landed on each point, grouped by first digit. The paper reports a close match to Benford's law (dots).</p>
+      <canvas class="chart" id="benCv" aria-label="Bar chart of leading digits of visit counts compared with Benford's law"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Consecutive last digits</h2>
+      <p>Given one prime's last digit (rows), how often the next prime ends in each digit (columns). A truly random sequence would show 25% everywhere.</p>
+      <div class="trans" id="trans"></div>
+      <div class="axis-note">Rows: this prime. Columns: the next prime. Repeats on the diagonal are rarer, the bias Oliver and Soundararajan described, which the authors link to the walk's compactness.</div>
+    </div>
+  </div>
+
+  <footer>
+    Rules, after Fraile, Kinouchi, Dwivedi, Martínez, Raptis &amp; Fernández, <a href="https://arxiv.org/abs/2105.12547" target="_blank" rel="noopener">“Prime numbers and random walks in a square grid”</a> (2021): the number 1 sits at (0, 0). Each following number stays on the same point unless it is prime, in which case the walker moves up for a last digit of 1, down for 3, left for 7 and right for 9. The primes 2 and 5 cause no step. The random walk moves at exactly the same moments but picks each direction at random. The counting never stops: primes come from a segmented sieve of Eratosthenes that extends itself as the numbers grow.
+  </footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+
+// ---------- Colour ramp: early cells grey, then ink, the latest in orange ----------
+const STOPS = ['d5d8dd','9097a1','5b6475','1b1d22','8a4a12','f27305']
+  .map(h => [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]);
+const LUT = new Uint32Array(256);
+for (let i=0;i<256;i++){
+  const t = i/255*(STOPS.length-1), k = Math.min(Math.floor(t), STOPS.length-2), f = t-k;
+  const a = STOPS[k], b = STOPS[k+1];
+  const r = Math.round(a[0]+(b[0]-a[0])*f), g = Math.round(a[1]+(b[1]-a[1])*f), bl = Math.round(a[2]+(b[2]-a[2])*f);
+  LUT[i] = ((255<<24) | (bl<<16) | (g<<8) | r) >>> 0;
+}
+const BG = 0xFFFFFFFF;
+
+// ---------- Walk storage ----------
+const OFF = 1048576, MUL = 2097152;
+function makeWalk(){
+  const cap = 1<<14;
+  return { map:new Map(), cap, n:0, xs:new Int32Array(cap), ys:new Int32Array(cap),
+    z:new Float64Array(cap), last:new Uint32Array(cap),
+    x:0, y:0, cur:0, minX:0, maxX:0, minY:0, maxY:0, zmax:0 };
+}
+function grow(w){
+  const c = w.cap*2;
+  const xs=new Int32Array(c); xs.set(w.xs); w.xs=xs;
+  const ys=new Int32Array(c); ys.set(w.ys); w.ys=ys;
+  const z=new Float64Array(c); z.set(w.z); w.z=z;
+  const l=new Uint32Array(c); l.set(w.last); w.last=l;
+  w.cap=c;
+}
+function cellIdx(w,x,y){
+  const k = (x+OFF)*MUL + (y+OFF);
+  let i = w.map.get(k);
+  if (i === undefined){
+    if (w.n === w.cap) grow(w);
+    i = w.n++; w.map.set(k,i); w.xs[i]=x; w.ys[i]=y;
+    if (x<w.minX) w.minX=x; else if (x>w.maxX) w.maxX=x;
+    if (y<w.minY) w.minY=y; else if (y>w.maxY) w.maxY=y;
+  }
+  return i;
+}
+function dwell(w,d){ const z = (w.z[w.cur] += d); if (z > w.zmax) w.zmax = z; }
+function move(w,dx,dy,step){ w.x+=dx; w.y+=dy; w.cur=cellIdx(w,w.x,w.y); w.last[w.cur]=step; }
+
+const DIR = {1:[0,1], 3:[0,-1], 7:[-1,0], 9:[1,0]};
+const DI = {1:0, 3:1, 7:2, 9:3};
+const RDIR = [[0,1],[0,-1],[-1,0],[1,0]];
+const ARROW = {1:'↑', 3:'↓', 7:'←', 9:'→'};
+
+// ---------- A sieve with no end: the base primes are extended whenever a segment needs more ----------
+const SEG = 1<<17; // odd numbers per segment
+function smallPrimes(lim){
+  const s = new Uint8Array(lim+1), out = [];
+  for (let i=3;i<=lim;i+=2){ if(!s[i]){ out.push(i); for(let j=i*i;j<=lim;j+=2*i) s[j]=1; } }
+  return Int32Array.from(out);
+}
+function loadSeg(){
+  const seg=S.seg, start=S.segStart, end=start+2*SEG;
+  if (S.baseLim*S.baseLim < end){
+    S.baseLim = Math.max(S.baseLim*2, Math.ceil(Math.sqrt(end))+2);
+    S.base = smallPrimes(S.baseLim);
+  }
+  const base=S.base;
+  seg.fill(0);
+  for (let q=0;q<base.length;q++){
+    const p=base[q], pp=p*p;
+    if (pp>=end) break;
+    let m;
+    if (pp>=start) m=pp; else { m=Math.ceil(start/p)*p; if((m&1)===0) m+=p; }
+    for (let j=(m-start)>>1; j<SEG; j+=p) seg[j]=1;
+  }
+  if (start===1) seg[0]=1;
+  S.segPos=0; S.segLoaded=true;
+}
+
+// ---------- Run state ----------
+let S = null;
+let colorMode = 'step', speed = 'watch';
+// Watch it grow: N climbs as the square of the time, ten million after sixteen seconds, and on.
+const WATCH = t => 1e7 * Math.pow(t/16000, 2);
+
+function newRun(){
+  S = { curN:1, lastN:1, primes:1, steps:0,
+    pw:makeWalk(), rw:makeWalk(), seed:(Math.random()*4294967295)>>>0 || 1, trans:new Float64Array(16), prevD:-1,
+    rec:[], samples:[{n:1,a:1,b:1,pi:0}], nextSample:1000,
+    baseLim:1024, base:smallPrimes(1024), seg:new Uint8Array(SEG),
+    segStart:1, segPos:0, segLoaded:false, paused:false, elapsed:0, lastTs:0 };
+  S.pw.cur = cellIdx(S.pw,0,0); S.rw.cur = cellIdx(S.rw,0,0);
+  plates.forEach(P => P.view.follow = true);
+}
+
+function onPrime(p){
+  S.primes++;
+  const d = p%10;
+  if (d===5) return;
+  const dw = p - S.lastN;
+  dwell(S.pw,dw); dwell(S.rw,dw);
+  S.lastN = p;
+  const st = ++S.steps;
+  const a = DIR[d]; move(S.pw,a[0],a[1],st);
+  let x = S.seed; x ^= x<<13; x ^= x>>>17; x ^= x<<5; S.seed = x>>>0;
+  const r = RDIR[S.seed & 3]; move(S.rw,r[0],r[1],st);
+  const di = DI[d];
+  if (S.prevD>=0) S.trans[S.prevD*4+di]++;
+  S.prevD = di;
+  S.rec.push(p); if (S.rec.length>24) S.rec.splice(0,12);
+}
+
+function walkTo(limit){
+  while (S.curN < limit){
+    if (!S.segLoaded) loadSeg();
+    const start=S.segStart, seg=S.seg;
+    let j=S.segPos;
+    const jEnd = Math.min(SEG, Math.floor((limit-start)/2)+1);
+    for (; j<jEnd; j++) if (!seg[j]) onPrime(start+2*j);
+    S.segPos=j;
+    S.curN = Math.min(limit, start+2*j-1);
+    if (j>=SEG){ S.segStart += 2*SEG; S.segLoaded=false; }
+  }
+}
+// Samples for the area chart, spaced more widely as N grows, so there are never too many.
+function advance(target){
+  while (S.curN < target){
+    walkTo(Math.min(target, S.nextSample));
+    if (S.curN >= S.nextSample){
+      S.samples.push({n:S.curN, a:S.pw.n, b:S.rw.n, pi:S.primes});
+      S.nextSample = Math.max(S.curN+1, Math.floor(S.curN*1.02));
+    }
+  }
+}
+
+let lastPlateDraw = 0, lastStats = 0;
+function frame(ts){
+  if (!S || S.paused) return;
+  const t0 = performance.now();
+  const dt = S.lastTs ? Math.min(60, ts - S.lastTs) : 16;
+  S.lastTs = ts; S.elapsed += dt;
+  const desired = speed==='fast' ? Infinity : Math.max(2, Math.floor(WATCH(S.elapsed)));
+  while (S.curN < desired && performance.now()-t0 < 24){
+    advance(Math.min(desired, S.curN + 65536));
+  }
+  // Walking faster than it can be counted: let the clock wait for the count.
+  if (speed==='watch' && S.curN < desired) S.elapsed = 16000*Math.sqrt(S.curN/1e7);
+  const now = performance.now();
+  const cells = S.pw.n + S.rw.n;
+  const plateEvery = cells > 3e6 ? 500 : cells > 4e5 ? 140 : 0;
+  if (now - lastPlateDraw >= plateEvery){ plates.forEach(drawPlate); lastPlateDraw = now; }
+  if (now - lastStats >= 250){ drawStats(); lastStats = now; }
+  requestAnimationFrame(frame);
+}
+
+// ---------- The two plates ----------
+const plates = [...document.querySelectorAll('.plate')].map(el => {
+  const cv = el.querySelector('canvas');
+  return { el, cv, ctx: cv.getContext('2d'), key: el.dataset.walk, view:{cx:0,cy:0,s:8,follow:true},
+    dpr:1, img:null, u32:null, vb:null, area: el.querySelector('.area'), readout: el.querySelector('.readout') };
+});
+function sizePlate(P){
+  P.dpr = Math.min(window.devicePixelRatio||1, 2);
+  const r = P.cv.getBoundingClientRect();
+  const W = Math.max(1, Math.round(r.width*P.dpr)), H = Math.max(1, Math.round(r.height*P.dpr));
+  if (P.cv.width!==W || P.cv.height!==H || !P.img){
+    const old = {W:P.cv.width, H:P.cv.height};
+    P.cv.width=W; P.cv.height=H;
+    P.img = P.ctx.createImageData(W,H); P.u32 = new Uint32Array(P.img.data.buffer); P.vb = new Float32Array(W*H);
+    if (old.W>1){ P.view.s *= Math.min(W/old.W, H/old.H); }
+  }
+}
+// Both plates at one scale — the one the larger walk needs — so that their sizes can be compared
+// by eye: fitted each to itself, the random walk would look the smaller of the two.
+function fit(P, w){
+  const v = P.view;
+  let s = 36*P.dpr;
+  for (const k of ['pw','rw']){
+    const o = S[k], bw = o.maxX-o.minX+1, bh = o.maxY-o.minY+1;
+    s = Math.min(s, Math.min(P.cv.width/(bw+2), (P.cv.height*0.86)/(bh+2)) * 0.92);
+  }
+  v.s = s;
+  v.cx = (w.minX+w.maxX)/2; v.cy = (w.minY+w.maxY)/2;
+}
+function drawPlate(P){
+  if (!P.img) sizePlate(P);
+  const W=P.cv.width, H=P.cv.height, vb=P.vb, u32=P.u32;
+  vb.fill(-1);
+  if (S){
+    const w = S[P.key], v = P.view;
+    if (v.follow) fit(P, w);
+    const s=v.s, hx=W/2, hy=H/2, cx=v.cx, cy=v.cy;
+    const n=w.n, xs=w.xs, ys=w.ys;
+    const byZ = colorMode==='z';
+    const zPending = S.curN - S.lastN + 1;
+    const zTop = Math.max(w.zmax, w.z[w.cur]+zPending, 1);
+    const invZ = 1/Math.log1p(zTop), invS = 1/Math.max(1,S.steps);
+    const zs = w.z, ls = w.last, cur = w.cur;
+    if (s < 1.5){
+      for (let i=0;i<n;i++){
+        const fx=(xs[i]-cx)*s+hx; if (fx<0||fx>=W) continue;
+        const fy=(cy-ys[i])*s+hy; if (fy<0||fy>=H) continue;
+        const val = byZ ? Math.log1p(zs[i] + (i===cur?zPending:0))*invZ : ls[i]*invS;
+        const idx=(fy|0)*W+(fx|0);
+        if (val>vb[idx]) vb[idx]=val;
+      }
+    } else {
+      const gap = s>=7 ? Math.max(1, Math.round(P.dpr)) : 0;
+      const b = Math.max(1, Math.round(s) - gap);
+      const half = s/2;
+      for (let i=0;i<n;i++){
+        let x0 = Math.floor((xs[i]-cx)*s+hx-half); if (x0>=W || x0+b<=0) continue;
+        let y0 = Math.floor((cy-ys[i])*s+hy-half); if (y0>=H || y0+b<=0) continue;
+        const val = byZ ? Math.log1p(zs[i] + (i===cur?zPending:0))*invZ : ls[i]*invS;
+        let x1=Math.min(W,x0+b), y1=Math.min(H,y0+b); if(x0<0)x0=0; if(y0<0)y0=0;
+        for (let y=y0;y<y1;y++){ const row=y*W; for (let x=x0;x<x1;x++){ if (val>vb[row+x]) vb[row+x]=val; } }
+      }
+    }
+  }
+  for (let i=0,L=W*H;i<L;i++){ const v=vb[i]; u32[i] = v<0 ? BG : LUT[Math.min(255,(v*255)|0)]; }
+  P.ctx.putImageData(P.img,0,0);
+  if (S){
+    const w=S[P.key], v=P.view, hx=W/2, hy=H/2, d=P.dpr;
+    const ox=(0-v.cx)*v.s+hx, oy=(v.cy-0)*v.s+hy, r=5*d;
+    P.ctx.strokeStyle='rgba(27,29,34,.7)'; P.ctx.lineWidth=1.2*d;
+    P.ctx.beginPath(); P.ctx.moveTo(ox-r,oy); P.ctx.lineTo(ox+r,oy); P.ctx.moveTo(ox,oy-r); P.ctx.lineTo(ox,oy+r); P.ctx.stroke();
+    const px=(w.x-v.cx)*v.s+hx, py=(v.cy-w.y)*v.s+hy;
+    P.ctx.strokeStyle='#F27305'; P.ctx.lineWidth=1.8*d;
+    P.ctx.beginPath(); P.ctx.arc(px,py,Math.max(5*d, v.s*0.8),0,Math.PI*2); P.ctx.stroke();
+    P.area.textContent = fmt(w.n);
+  }
+}
+
+// ---------- Stats & charts ----------
+const fmt = n => Math.round(n).toLocaleString('en-US');
+function short(n){
+  if (n>=1e9) return +(n/1e9).toFixed(1)+'B';
+  if (n>=1e6) return +(n/1e6).toFixed(1)+'M';
+  if (n>=1e3) return +(n/1e3).toFixed(1)+'k';
+  return String(Math.round(n));
+}
+function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function setupCanvas(c){
+  const r=c.getBoundingClientRect(), d=window.devicePixelRatio||1;
+  const w=Math.max(1,Math.round(r.width*d)), h=Math.max(1,Math.round(r.height*d));
+  if (c.width!==w||c.height!==h){ c.width=w; c.height=h; }
+  const g=c.getContext('2d'); g.setTransform(d,0,0,d,0,0); g.clearRect(0,0,r.width,r.height);
+  return {g, w:r.width, h:r.height};
+}
+function drawStats(){
+  if (!S) return;
+  $('#sN').textContent = fmt(S.curN);
+  $('#sPi').textContent = fmt(S.primes);
+  $('#sApw').textContent = fmt(S.pw.n);
+  $('#sArw').textContent = fmt(S.rw.n);
+  $('#sR1').textContent = S.steps>50 ? (S.primes/S.pw.n).toFixed(2) : '–';
+  $('#sR2').textContent = S.steps>50 ? (S.rw.n/S.pw.n).toFixed(2) : '–';
+  $('#sZ').textContent = fmt(S.pw.zmax);
+  $('#sZnote').textContent = 'Random walk: ' + fmt(S.rw.zmax);
+  const t = $('#ticker'); const rec = S.rec.slice(-6);
+  t.innerHTML = rec.length ? rec.map(p => `<span>${fmt(p)}<b>${ARROW[p%10]}</b></span>`).join('') : '<span style="color:var(--muted)">Waiting for the first prime</span>';
+  drawArea(); drawBenford(); drawTrans();
+}
+function drawArea(){
+  const {g,w,h} = setupCanvas($('#areaCv'));
+  if (!S) return;
+  const pts = S.samples.concat([{n:S.curN,a:S.pw.n,b:S.rw.n,pi:S.primes}]);
+  const N = Math.max(2, S.curN);
+  const pl=6, pr=6, pt=16, pb=18;
+  let ymax = 1; for (const p of pts) ymax = Math.max(ymax, p.a, p.b, p.pi/10);
+  ymax *= 1.06;
+  const X = n => pl + (w-pl-pr)*n/N, Y = v => h-pb - (h-pb-pt)*v/ymax;
+  g.strokeStyle = css('--rule'); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(pl,h-pb+.5); g.lineTo(w-pr,h-pb+.5); g.stroke();
+  const line = (key, color, dash, f) => {
+    g.strokeStyle=color; g.lineWidth=2; g.setLineDash(dash); g.beginPath();
+    pts.forEach((p,i)=>{ const x=X(p.n), y=Y(f?f(p):p[key]); i?g.lineTo(x,y):g.moveTo(x,y); });
+    g.stroke(); g.setLineDash([]);
+  };
+  line(null, css('--pi'), [5,4], p=>p.pi/10);
+  line('b', css('--rw'), []);
+  line('a', css('--pw'), []);
+  g.fillStyle = css('--muted'); g.font = '11px system-ui, sans-serif';
+  g.textBaseline='bottom'; g.textAlign='left'; g.fillText(fmt(ymax/1.06)+' points', pl, Y(ymax/1.06)-3);
+  g.textBaseline='top'; g.fillText('N = 0', pl, h-pb+4);
+  g.textAlign='right'; g.fillText('N = '+short(N), w-pr, h-pb+4);
+}
+const BENF = [1,2,3,4,5,6,7,8,9].map(d=>Math.log10(1+1/d));
+function drawBenford(){
+  const {g,w,h} = setupCanvas($('#benCv'));
+  if (!S) return;
+  const w0 = S.pw, cnt = new Float64Array(10); let tot=0;
+  for (let i=0;i<w0.n;i++){
+    let z = w0.z[i]; if (z<1) continue;
+    while (z>=10) z = Math.floor(z/10);
+    cnt[z]++; tot++;
+  }
+  const pl=4, pr=4, pt=10, pb=20, bw = (w-pl-pr)/9;
+  const ymax = Math.max(0.35, ...[1,2,3,4,5,6,7,8,9].map(d=>tot?cnt[d]/tot:0))*1.08;
+  const Y = v => h-pb - (h-pb-pt)*v/ymax;
+  g.fillStyle = css('--pw');
+  for (let d=1; d<=9; d++){
+    const f = tot?cnt[d]/tot:0, x = pl+(d-1)*bw;
+    g.globalAlpha=.8; g.fillRect(x+bw*.18, Y(f), bw*.64, h-pb-Y(f)); g.globalAlpha=1;
+  }
+  g.strokeStyle = css('--ink'); g.fillStyle = css('--ink'); g.lineWidth=1.3;
+  g.beginPath(); BENF.forEach((b,i)=>{ const x=pl+i*bw+bw/2, y=Y(b); i?g.lineTo(x,y):g.moveTo(x,y); }); g.stroke();
+  BENF.forEach((b,i)=>{ g.beginPath(); g.arc(pl+i*bw+bw/2, Y(b), 3, 0, Math.PI*2); g.fill(); });
+  g.fillStyle = css('--muted'); g.font='11px system-ui, sans-serif'; g.textAlign='center'; g.textBaseline='top';
+  for (let d=1; d<=9; d++) g.fillText(String(d), pl+(d-1)*bw+bw/2, h-pb+5);
+}
+function drawTrans(){
+  const el = $('#trans'); const D=[1,3,7,9];
+  let html = '<div></div>' + D.map(d=>`<div class="h">${d}</div>`).join('');
+  for (let a=0;a<4;a++){
+    let row=0; for (let b=0;b<4;b++) row += S ? S.trans[a*4+b] : 0;
+    html += `<div class="rh">${D[a]}</div>`;
+    for (let b=0;b<4;b++){
+      const p = row ? S.trans[a*4+b]/row : 0;
+      const mix = Math.round(Math.min(90, p*260));
+      html += `<div class="cell" style="background:color-mix(in srgb, var(--pw) ${mix}%, #fff);color:${mix>48?'#fff':'var(--ink)'}">${row?(p*100).toFixed(1)+'%':'–'}</div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+// ---------- Controls ----------
+function startRun(){ newRun(); $('#go').textContent='Pause'; plates.forEach(drawPlate); drawStats(); requestAnimationFrame(frame); }
+$('#go').addEventListener('click', ()=>{
+  S.paused = !S.paused; S.lastTs = 0;
+  $('#go').textContent = S.paused ? 'Resume' : 'Pause';
+  if (!S.paused) requestAnimationFrame(frame);
+});
+$('#restart').addEventListener('click', startRun);
+function pressGroup(sel, btn){ document.querySelectorAll(sel).forEach(b=>b.setAttribute('aria-pressed', String(b===btn))); }
+document.querySelectorAll('[data-color]').forEach(b=>b.addEventListener('click',()=>{
+  colorMode=b.dataset.color; pressGroup('[data-color]',b);
+  $('#scaleLo').textContent = colorMode==='z' ? 'few visits' : 'early';
+  $('#scaleHi').textContent = colorMode==='z' ? 'many' : 'late';
+  plates.forEach(drawPlate);
+}));
+document.querySelectorAll('[data-speed]').forEach(b=>b.addEventListener('click',()=>{
+  speed=b.dataset.speed; pressGroup('[data-speed]',b);
+  if (S && speed==='watch') S.elapsed = 16000*Math.sqrt(S.curN/1e7);
+}));
+
+// ---------- Pan / zoom / hover, each plate its own ----------
+plates.forEach(P => {
+  const cv = P.cv;
+  const zoomAt = (sx,sy,f) => {
+    const v=P.view, hx=cv.width/2, hy=cv.height/2;
+    const wx=(sx-hx)/v.s+v.cx, wy=v.cy-(sy-hy)/v.s;
+    v.s = Math.max(0.01, Math.min(80*P.dpr, v.s*f));
+    v.cx = wx-(sx-hx)/v.s; v.cy = wy+(sy-hy)/v.s; v.follow=false;
+    drawPlate(P);
+  };
+  P.el.querySelectorAll('[data-z]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.z==='fit'){ P.view.follow=true; drawPlate(P); }
+    else zoomAt(cv.width/2, cv.height/2, b.dataset.z==='in' ? 1.6 : 1/1.6);
+  }));
+  cv.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const r=cv.getBoundingClientRect();
+    zoomAt((e.clientX-r.left)*P.dpr,(e.clientY-r.top)*P.dpr, Math.exp(-e.deltaY*0.0018));
+  },{passive:false});
+  const ptrs = new Map(); let pinch0 = null;
+  cv.addEventListener('pointerdown', e=>{ cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY}); pinch0=null; });
+  cv.addEventListener('pointerup', e=>{ ptrs.delete(e.pointerId); pinch0=null; });
+  cv.addEventListener('pointercancel', e=>{ ptrs.delete(e.pointerId); pinch0=null; });
+  cv.addEventListener('pointermove', e=>{
+    const r=cv.getBoundingClientRect();
+    if (ptrs.has(e.pointerId)){
+      const p=ptrs.get(e.pointerId), dx=e.clientX-p.x, dy=e.clientY-p.y;
+      p.x=e.clientX; p.y=e.clientY;
+      const v=P.view;
+      if (ptrs.size===1){ v.cx -= dx*P.dpr/v.s; v.cy += dy*P.dpr/v.s; v.follow=false; drawPlate(P); }
+      else if (ptrs.size===2){
+        const [a,b]=[...ptrs.values()];
+        const d=Math.hypot(a.x-b.x,a.y-b.y), mx=((a.x+b.x)/2-r.left)*P.dpr, my=((a.y+b.y)/2-r.top)*P.dpr;
+        if (pinch0) zoomAt(mx,my,d/pinch0);
+        pinch0=d;
+      }
+      return;
+    }
+    if (!S) return;
+    const sx=(e.clientX-r.left)*P.dpr, sy=(e.clientY-r.top)*P.dpr, v=P.view, w=S[P.key];
+    const x=Math.round((sx-cv.width/2)/v.s+v.cx), y=Math.round(v.cy-(sy-cv.height/2)/v.s);
+    const i=w.map.get((x+OFF)*MUL+(y+OFF));
+    if (i===undefined){ P.readout.textContent = `(${x}, ${y}): never visited`; return; }
+    const z = w.z[i] + (i===w.cur ? S.curN-S.lastN+1 : 0);
+    P.readout.textContent = `(${x}, ${y}): ${fmt(z)} number${z===1?'':'s'} landed here, last visited at step ${fmt(w.last[i])}`;
+  });
+  new ResizeObserver(()=>{ sizePlate(P); drawPlate(P); }).observe(P.el);
+});
+
+if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+  speed='fast'; pressGroup('[data-speed]', document.querySelector('[data-speed="fast"]'));
+}
+drawTrans();
+startRun();
+})();
+</script>
+<script>
+if(window.parent!==window)window.addEventListener('keydown',e=>{
+  const t=e.target,typing=t instanceof HTMLElement&&(t.isContentEditable||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&!['range','checkbox','button','color'].includes(t.type)));
+  if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(!['ArrowRight','ArrowLeft','PageDown','PageUp','Home','End','f','F'].includes(e.key))return;
+  e.preventDefault();window.parent.postMessage({deckKey:e.key},'*');
+});
+</script>
+</body>
+</html>
