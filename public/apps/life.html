@@ -20,11 +20,9 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);display:fle
 button,select,input{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 
-header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:4px 20px 14px}
-h1{font:400 30px/1.1 var(--serif);margin:0}
-header p{margin:0;color:var(--muted);font:17px/1.4 var(--serif);max-width:70ch}
 
-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(290px,340px) 1fr;gap:20px;padding:0 20px 8px}
+/* The board is the point, so it takes the page; the controls keep only the width they need. */
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(250px,20vw) minmax(0,1fr);gap:14px;padding:10px 14px}
 .side{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px}
 .side h2{font:400 18px var(--serif);margin:0 0 6px}
 
@@ -72,15 +70,10 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(290px,340px) 
   main{grid-template-columns:1fr;padding:0 14px 16px}
   .stage{order:-1;height:58vh}
   .side{overflow:visible}
-  header{padding:12px 14px 8px}
 }
 </style>
 </head>
 <body>
-<header>
-  <h1>Life</h1>
-  <p>Conway’s Game of Life. A cell with two or three live neighbours stays alive; an empty cell with exactly three comes alive. That is all.</p>
-</header>
 
 <main>
   <section class="side" aria-label="Controls">

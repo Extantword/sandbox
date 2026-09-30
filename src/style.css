@@ -243,6 +243,16 @@ img {
   height: min(72vh, 46vw);
 }
 
+/* Where the thing itself is shown instead of a drawing of it. */
+.principle__embed {
+  display: block;
+  width: 100%;
+  height: min(72vh, 46vw);
+  border: 1px solid var(--rule);
+  border-radius: 0.5em;
+  background: var(--page);
+}
+
 /* ---- what a property means, and the pictures that show it ---- */
 
 .example__says {
@@ -263,10 +273,18 @@ img {
   border-radius: 0.4em;
 }
 
-.example__named {
-  margin: 1.2em 0 0;
-  font-size: 0.85em;
-  text-align: center;
+/* Each picture says what it is, underneath itself. */
+.shot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0;
+}
+
+.shot__says {
+  font-size: 0.8em;
+  color: var(--muted);
 }
 
 .label {

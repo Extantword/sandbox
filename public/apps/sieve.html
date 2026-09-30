@@ -27,10 +27,8 @@ body{margin:0;height:100%;background:var(--paper);color:var(--ink);font:15px/1.5
 button{font-family:inherit}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
-.app{height:100%;display:grid;grid-template-columns:minmax(330px,420px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
-.top{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;padding:4px 22px 14px;border-bottom:1px solid var(--rule)}
-.top h1{margin:0;font:400 30px/1.1 var(--serif)}
-.top p{margin:0;color:var(--ink-3);font:17px/1.4 var(--serif);max-width:70ch}
+/* Nothing above the work: the sets on one side, the numbers themselves taking the rest. */
+.app{height:100%;display:grid;grid-template-columns:minmax(300px,24vw) minmax(0,1fr);grid-template-rows:minmax(0,1fr)}
 
 .side{min-height:0;overflow:auto;background:var(--panel);border-right:1px solid var(--rule);padding:14px 18px 32px}
 .side h2{font:400 18px/1.3 var(--serif);margin:0}
@@ -131,10 +129,6 @@ canvas.pan.grabbing{cursor:grabbing}
 </head>
 <body>
 <div class="app">
-  <header class="top">
-    <h1>Sieve</h1>
-    <p>A sandbox for prime numbers. Write sets of numbers, turn plain numbers into sliders, and watch where the primes fall.</p>
-  </header>
 
   <aside class="side">
     <div class="side-head">
@@ -772,8 +766,99 @@ function ulam(x,y){
   if(y===k) return m-4*k-(x+k);
   return m-6*k-(k-y);
 }
+/* ---------------- The spiral, far past what the sets reach ---------------- */
+/*
+ * The sets are built as bitmaps, so they stop where memory does — a million numbers. The spiral
+ * does not have to: whether a single number is prime can be answered on the spot, and how many
+ * primes fall in a patch of a thousand can be counted once and kept. So the view has two halves.
+ *
+ * Close up, every cell is asked one at a time: below the set limit it is coloured by the sets it
+ * belongs to, and past it by whether it is prime, which a Miller–Rabin test settles exactly for
+ * everything below 3.2 billion. Far out, where a cell is smaller than a pixel, there is nothing
+ * to see cell by cell and what is drawn is the density: a worker sieves the whole billion in
+ * segments and tallies the primes into a coarse map, which fills in from the middle outwards
+ * while it runs. The shade is the count against the count that would be expected there, so what
+ * shows is where the primes are thicker than they have any right to be.
+ */
+const FAR=1e9, KFAR=Math.floor((Math.sqrt(1e9)-1)/2);
+
+/* a*b mod m without losing a bit, for m under 2^32: split a into halves that fit a double */
+function mulmod(a,b,m){const ah=Math.floor(a/65536),al=a%65536;return ((ah*b)%m*65536+al*b)%m;}
+function powmod(a,e,m){let r=1;a%=m;while(e>0){if(e%2===1)r=mulmod(r,a,m);a=mulmod(a,a,m);e=Math.floor(e/2);}return r;}
+const SMALLP=[2,3,5,7,11,13,17,19,23,29,31,37];
+/* Deterministic below 3,215,031,751 with these four witnesses. */
+function isPrimeFar(n){
+  if(!Number.isInteger(n)||n<2) return false;
+  for(const p of SMALLP){if(n%p===0) return n===p;}
+  let d=n-1,s=0;while(d%2===0){d/=2;s++;}
+  for(const a of [2,3,5,7]){
+    let x=powmod(a,d,n);
+    if(x===1||x===n-1) continue;
+    let ok=false;
+    for(let i=1;i<s;i++){x=mulmod(x,x,n);if(x===n-1){ok=true;break;}}
+    if(!ok) return false;
+  }
+  return true;
+}
+
+/* The tally of primes per patch of the spiral, filled in by a worker while it runs. */
+const dens={tex:1024,counts:null,done:0,started:false};
+function densityWorker(){
+  onmessage=function(e){
+    var far=e.data.far,tex=e.data.tex;
+    var K=Math.floor((Math.sqrt(far)-1)/2),side=2*K+1;
+    var counts=new Uint16Array(tex*tex);
+    var lim=Math.floor(Math.sqrt(far))+1,mark=new Uint8Array(lim+1),base=[];
+    for(var i=3;i<=lim;i+=2){if(!mark[i]){base.push(i);for(var j=i*i;j<=lim;j+=2*i)mark[j]=1;}}
+    var SEG=1<<22,seg=new Uint8Array(SEG>>1),last=Date.now();
+    for(var lo=3;lo<far;lo+=SEG){
+      var hi=Math.min(far,lo+SEG);
+      seg.fill(0);
+      for(var b=0;b<base.length;b++){
+        var p=base[b];
+        if(p*p>=hi) break;
+        var start=p*p;
+        if(start<lo){start=Math.ceil(lo/p)*p;if(start%2===0)start+=p;}
+        for(var j2=start;j2<hi;j2+=2*p) seg[(j2-lo)>>1]=1;
+      }
+      var slots=(hi-lo+1)>>1;
+      for(var idx=0;idx<slots;idx++){
+        if(seg[idx]) continue;
+        var n=lo+2*idx;
+        /* where that number sits in the spiral, read straight off the ring it is in */
+        var k=Math.ceil((Math.sqrt(n)-1)/2);
+        while((2*k+1)*(2*k+1)<n) k++;
+        while(k>0&&(2*k-1)*(2*k-1)>=n) k--;
+        var m=(2*k+1)*(2*k+1),t=2*k,x,y;
+        if(n>=m-t){y=-k;x=k-(m-n);}
+        else if(n>=m-2*t){x=-k;y=m-t-n-k;}
+        else if(n>=m-3*t){y=k;x=m-2*t-n-k;}
+        else{x=k;y=k-(m-3*t-n);}
+        var tx=((x+K)*tex/side)|0,ty=((K-y)*tex/side)|0;
+        if(tx>=0&&ty>=0&&tx<tex&&ty<tex) counts[ty*tex+tx]++;
+      }
+      if(Date.now()-last>900){postMessage({counts:counts,done:hi});last=Date.now();}
+    }
+    postMessage({counts:counts,done:far,finished:true});
+  };
+}
+function ensureDensity(){
+  if(dens.started) return;
+  dens.started=true;
+  try{
+    const blob=new Blob(['('+densityWorker.toString()+')()'],{type:'text/javascript'});
+    const wk=new Worker(URL.createObjectURL(blob));
+    wk.onmessage=ev=>{
+      dens.counts=ev.data.counts;dens.done=ev.data.done;
+      if(ev.data.finished) wk.terminate();
+      drawSoon();
+    };
+    wk.postMessage({far:FAR,tex:dens.tex});
+  }catch(err){dens.started=false;}
+}
 function hexRGB(c){const m=/^#?([0-9a-f]{6})$/i.exec(c);if(!m) return [128,128,128];const v=parseInt(m[1],16);return [v>>16,(v>>8)&255,v&255];}
-const csMin=(W,H)=>Math.max(0.3,Math.sqrt(W*H/2.5e6));
+/* Out as far as the whole billion-number spiral, which is 31,623 cells across. */
+const csMin=(W,H)=>Math.min(W,H)/(2*KFAR+2);
 function spView(){
   const {w:W,h:H}=inner(),sp=state.sp;let cs=sp.cs;
   if(cs==null){const L=Math.max(W,H),side=Math.max(5,Math.min(Math.floor(Math.sqrt(curN()))-3,Math.floor(L/2)));cs=L/side;}
@@ -785,17 +870,66 @@ function drawSpiral(){
   const vis=visibleSets(),C=colors(),N=curN(),v=spView(),{W,H,vx,vy,cs}=v;sizeCanvas(W,H);
   const {x0,x1,y0,y1}=spBounds(v);
   const left=x=>W/2+(x-0.5-vx)*cs,top=y=>H/2-(y+0.5-vy)*cs;
+  const note=$('#snote');
+  const bg=hexRGB(C.cell),pp=hexRGB(C.paper);
+  const primeRGB=vis.length?vis[0].rgb:[27,29,34];
+  /* How a cell past the set limit is painted: the sets do not reach it, but primality does. */
+  const farRGB=primeRGB;
+
+  if(cs<0.34){
+    /* ---- too small to see one at a time: the tally, smoothed into the page ---- */
+    ensureDensity();
+    ctx.clearRect(0,0,W,H);
+    if(!dens.counts){
+      if(note) note.textContent='Contando los primos hasta mil millones…';
+      viewInfo={kind:'spiral',...v};
+      return;
+    }
+    const tex=dens.tex,side=2*KFAR+1,per=side/tex;
+    const tx0=Math.max(0,Math.floor((x0+KFAR)/per)),tx1=Math.min(tex-1,Math.ceil((x1+KFAR)/per));
+    const ty0=Math.max(0,Math.floor((KFAR-y1)/per)),ty1=Math.min(tex-1,Math.ceil((KFAR-y0)/per));
+    const cols=tx1-tx0+1,rows=ty1-ty0+1;
+    if(cols>0&&rows>0){
+      const off=document.createElement('canvas');off.width=cols;off.height=rows;
+      const octx=off.getContext('2d'),img=octx.createImageData(cols,rows),d=img.data;
+      const cells=per*per;
+      for(let j=0;j<rows;j++){
+        const ty=ty0+j,ycell=KFAR-(ty+0.5)*per;
+        for(let i=0;i<cols;i++){
+          const tx=tx0+i,xcell=(tx+0.5)*per-KFAR,o=(j*cols+i)*4;
+          const ring=Math.max(Math.abs(xcell),Math.abs(ycell));
+          const upto=(2*ring+1)*(2*ring+1);
+          /* what the sieve has not reached yet is left as paper, so it fills in as it goes */
+          if(upto>dens.done){d[o+3]=0;continue;}
+          const count=dens.counts[ty*tex+tx];
+          /* against how many primes that patch ought to hold: what is left is the structure */
+          const expect=cells/Math.log(Math.max(3,upto));
+          const shade=Math.min(1,(count/Math.max(1e-6,expect))*0.85);
+          d[o]=primeRGB[0];d[o+1]=primeRGB[1];d[o+2]=primeRGB[2];d[o+3]=Math.round(shade*255);
+        }
+      }
+      octx.putImageData(img,0,0);
+      ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+      ctx.drawImage(off,left(tx0*per-KFAR)-cs*0.5+cs*0.5,top(KFAR-ty0*per)-0,cols*per*cs,rows*per*cs);
+    }
+    viewInfo={kind:'spiral',...v};
+    if(note) note.textContent=dens.done>=FAR
+      ?'Densidad de primos por parche, hasta mil millones. Cuanto más oscuro, más primos de los que tocarían ahí.'
+      :`Densidad de primos por parche · contados ${fmt(dens.done)} de ${fmt(FAR)}…`;
+    return;
+  }
+
   let beyond=false;
   if(cs<3){
     // Small cells: paint one pixel per number, then scale the image into place.
     const cols=x1-x0+1,rows=y1-y0+1,off=document.createElement('canvas');off.width=cols;off.height=rows;
     const octx=off.getContext('2d'),img=octx.createImageData(cols,rows),d=img.data;
-    const bg=hexRGB(C.cell),pp=hexRGB(C.paper);
     for(let j=0;j<rows;j++){
       const y=y1-j;
       for(let i=0;i<cols;i++){
         const n=ulam(x0+i,y),o=(j*cols+i)*4;let c;
-        if(n>N){c=pp;beyond=true;}
+        if(n>FAR){c=pp;}
+        else if(n>N){beyond=true;c=isPrimeFar(n)?farRGB:bg;}
         else{let col=-1;for(let k=0;k<vis.length;k++) if(vis[k].b.has(n)) col=k;c=col<0?bg:vis[col].rgb;}
         d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255;
       }
@@ -809,7 +943,16 @@ function drawSpiral(){
     for(let y=y1;y>=y0;y--){
       for(let x=x0;x<=x1;x++){
         const n=ulam(x,y),px=left(x),py=top(y);
-        if(n>N){beyond=true;continue;}
+        if(n>FAR) continue;
+        if(n>N){
+          /* past the sets: the one thing still worth asking of a single number */
+          beyond=true;
+          const p=isPrimeFar(n);
+          ctx.fillStyle=p?`rgb(${farRGB[0]} ${farRGB[1]} ${farRGB[2]})`:C.cell;
+          ctx.fillRect(px,py,sz+(gap?0:0.6),sz+(gap?0:0.6));
+          if(showNum){ctx.fillStyle=p?C.onInk:C.ink3;ctx.fillText(n,px+sz/2,py+sz/2+1);}
+          continue;
+        }
         mem.length=0;for(let k=0;k<vis.length;k++) if(vis[k].b.has(n)) mem.push(vis[k].color);
         if(!mem.length){ctx.fillStyle=C.cell;ctx.fillRect(px,py,sz+(gap?0:0.6),sz+(gap?0:0.6));}
         else{const sw=sz/mem.length;for(let j=0;j<mem.length;j++){ctx.fillStyle=mem[j];ctx.fillRect(px+j*sw,py,sw+(j<mem.length-1?0.5:(gap?0:0.6)),sz+(gap?0:0.6));}}
@@ -818,8 +961,7 @@ function drawSpiral(){
     }
   }
   viewInfo={kind:'spiral',...v};
-  const note=$('#snote');
-  if(note) note.textContent='Ulam’s spiral: 1 sits at the center and the numbers wind outward. Drag to move, scroll to zoom.'+(beyond?` Blank cells are past ${fmt(N)}.`:'');
+  if(note) note.textContent='La espiral de Ulam: el 1 en el centro y los números dando vueltas hacia afuera. Arrastra para mover, rueda para acercar.'+(beyond?` Más allá de ${fmt(N)} se muestran los primos, hasta ${fmt(FAR)}.`:'');
 }
 function pvView(){
   const {w:W,h:H}=inner(),pv=state.pv,span=pv.span==null?curN():pv.span;
@@ -993,7 +1135,7 @@ function onHover(e){
   const rect=cv.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;let html=null;
   const vi=viewInfo;
   if(vi.kind==='grid'){const c=Math.floor(x/vi.cs),r=Math.floor(y/vi.cs);if(c>=0&&c<vi.w&&r>=0){const n=r*vi.w+c;if(n<=vi.last) html=numTip(n);}}
-  else if(vi.kind==='spiral'){const n=ulam(Math.round((x-vi.W/2)/vi.cs+vi.vx),Math.round(vi.vy-(y-vi.H/2)/vi.cs));if(n<=curN()) html=numTip(n);}
+  else if(vi.kind==='spiral'){const n=ulam(Math.round((x-vi.W/2)/vi.cs+vi.vx),Math.round(vi.vy-(y-vi.H/2)/vi.cs));if(n<=curN()) html=numTip(n);else if(n<=FAR) html=`<b>${fmt(n)}</b> · ${isPrimeFar(n)?'primo':'compuesto'}`;}
   else if(vi.kind==='polar'){
     let best=-1,bd=100;
     visibleSets().forEach(s=>{const el=s.b.elems(),a=ub(el,vi.lo-1),k=ub(el,vi.hi);for(let i=a;i<k;i++){const n=el[i];const dx=vi.cx+n*Math.cos(n)*vi.sc-x,dy=vi.cy-n*Math.sin(n)*vi.sc-y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=n;}}});

@@ -21,8 +21,14 @@ const rich = (text: string) =>
     .join("");
 
 
-const picture = (each: Picture, className = "") =>
-  `<img class="${className}" src="${each.src}" alt="${escapeHtml(each.alt)}" draggable="false" />`;
+const picture = (each: Picture, className = "") => {
+  const image = `<img class="${className}" src="${each.src}" alt="${escapeHtml(each.alt)}" draggable="false" />`;
+  // A picture that is an example of something says what it is, right underneath itself, rather
+  // than in a line at the foot of the page that has to be matched up with it by hand.
+  return each.caption === undefined
+    ? image
+    : `<figure class="shot">${image}<figcaption class="shot__says">${escapeHtml(each.caption)}</figcaption></figure>`;
+};
 
 function build(slide: Slide): HTMLElement {
   const page = document.createElement("section");
@@ -62,7 +68,7 @@ function build(slide: Slide): HTMLElement {
             <p class="principle__says">${rich(slide.says)}</p>
             ${slide.link ? `<a class="principle__link" href="${slide.link.href}" target="_blank" rel="noopener">${escapeHtml(slide.link.text)} ↗</a>` : ""}
           </div>
-          <canvas class="principle__canvas" data-animation="${slide.animation}"></canvas>
+          ${slide.embed ? `<iframe class="principle__embed" title="${escapeHtml(slide.name)}" data-src="${slide.embed}"></iframe>` : `<canvas class="principle__canvas" data-animation="${slide.animation}"></canvas>`}
         </div>`;
       break;
     case "example":
@@ -71,7 +77,6 @@ function build(slide: Slide): HTMLElement {
           <h2 class="sheet__title">${escapeHtml(slide.title)}</h2>
           <p class="example__says">${rich(slide.says)}</p>
           <div class="example__pictures">${slide.pictures.map((each) => picture(each)).join("")}</div>
-          <p class="example__named"><span class="label">Ejemplo</span> ${escapeHtml(slide.example)}</p>
         </div>`;
       break;
     case "gallery":
@@ -151,7 +156,7 @@ function main() {
     index = Math.max(0, Math.min(SLIDES.length - 1, to));
     step = fromBehind ? stepsOf(index) : 0;
     pages.forEach((page, i) => page.classList.toggle("is-on", i === index));
-    const app = pages[index]!.querySelector<HTMLIFrameElement>("iframe.app");
+    const app = pages[index]!.querySelector<HTMLIFrameElement>("iframe[data-src]");
     if (app && !app.src) app.src = app.dataset.src!;
     // Leaving a sandbox takes the keyboard back from it.
     if (!app && document.activeElement instanceof HTMLIFrameElement) document.activeElement.blur();

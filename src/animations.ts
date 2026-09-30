@@ -68,96 +68,420 @@ function caption(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
   ctx.fillText(text, x, y);
 }
 
-/* ---- 1. design for designers: the same six pieces, made into one thing after another ---- */
+/* ---- 1. design for designers: somebody's world, walked through, left as nothing but its edges ---- */
 
+/**
+ * A first-person walk through a blocky world, drawn as the edges of its blocks and nothing else.
+ *
+ * The world is a set of unit cubes on the integer lattice, and what is drawn is the boundary
+ * between a block and the air beside it: every face with nothing in front of it gives its four
+ * edges, each edge kept once however many faces meet along it. Faces turned away from the eye are
+ * dropped — with no fill there is nothing to hide the far side of a box, and the back of every
+ * block showing through the front is a thicket rather than a place. What is left reads as the
+ * world's own scaffolding: the ground's grid, the trees, and the hut somebody put beside the path.
+ *
+ * The walk never ends because the world repeats every `L` blocks ahead: the ground is generated
+ * from functions periodic in z, so the copy the walker is in and the copy in front of them join
+ * seamlessly, and the one behind is simply left behind.
+ */
 function designers(): Frame {
-  type Kind = "tri" | "rect" | "circle";
-  // Each piece's kind, then where it is in each design: centre, width, height, turn (unit square).
-  const KINDS: Kind[] = ["rect", "tri", "rect", "circle", "circle", "rect"];
-  const DESIGNS: { name: string; pieces: [number, number, number, number, number][] }[] = [
-    {
-      name: "casa",
-      pieces: [
-        [0.5, 0.62, 0.44, 0.32, 0],
-        [0.5, 0.35, 0.56, 0.22, 0],
-        [0.5, 0.7, 0.1, 0.16, 0],
-        [0.36, 0.57, 0.09, 0.09, 0],
-        [0.84, 0.16, 0.12, 0.12, 0],
-        [0.5, 0.8, 0.84, 0.02, 0],
-      ],
-    },
-    {
-      name: "árbol",
-      pieces: [
-        [0.5, 0.66, 0.06, 0.3, 0],
-        [0.5, 0.34, 0.4, 0.34, 0],
-        [0.82, 0.2, 0.07, 0.03, 0.3],
-        [0.36, 0.46, 0.2, 0.2, 0],
-        [0.64, 0.44, 0.22, 0.22, 0],
-        [0.5, 0.82, 0.64, 0.03, 0],
-      ],
-    },
-    {
-      name: "barco",
-      pieces: [
-        [0.5, 0.68, 0.58, 0.1, 0],
-        [0.6, 0.44, 0.3, 0.34, 0],
-        [0.44, 0.24, 0.1, 0.05, 0],
-        [0.3, 0.68, 0.05, 0.05, 0],
-        [0.16, 0.18, 0.12, 0.12, 0],
-        [0.44, 0.44, 0.02, 0.4, 0],
-      ],
-    },
-    {
-      name: "cohete",
-      pieces: [
-        [0.5, 0.52, 0.18, 0.38, 0],
-        [0.5, 0.25, 0.18, 0.14, 0],
-        [0.5, 0.74, 0.32, 0.05, 0],
-        [0.5, 0.44, 0.07, 0.07, 0],
-        [0.2, 0.22, 0.04, 0.04, 0],
-        [0.5, 0.84, 0.04, 0.1, 0],
-      ],
-    },
-  ];
-  const HOLD = 2.2, MOVE = 1.4;
+  const L = 40; // how far ahead the world repeats
+  const HALF = 12; // how far to each side it is built
+  const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
+  const wrap = (z: number) => ((z % L) + L) % L;
+  const solid = new Set<string>();
+  const put = (x: number, y: number, z: number) => void solid.add(key(x, y, wrap(z)));
+  const has = (x: number, y: number, z: number) => solid.has(key(x, y, wrap(z)));
+
+  /** How high the ground stands at a column: level along the path, rolling away from it. */
+  const ground = (x: number, z: number) => {
+    const away = Math.max(0, Math.abs(x) - 2.5);
+    const roll = Math.sin((TAU * z) / L) * 0.9 + Math.cos((TAU * 2 * z) / L + 1.7) * 0.6;
+    return Math.round(away * 0.5 + roll * (away > 0 ? 1 : 0.2));
+  };
+
+  for (let z = 0; z < L; z++) {
+    for (let x = -HALF; x <= HALF; x++) {
+      const top = ground(x, z);
+      put(x, top, z);
+      put(x, top - 1, z);
+    }
+  }
+
+  /** A trunk with a blob of leaves on top, the way anyone's first tree comes out. */
+  const tree = (x: number, z: number, tall = 4) => {
+    const base = ground(x, z) + 1;
+    for (let k = 0; k < tall; k++) put(x, base + k, z);
+    for (let dy = tall - 2; dy <= tall + 1; dy++) {
+      const reach = dy >= tall ? 1 : 2;
+      for (let dx = -reach; dx <= reach; dx++) {
+        for (let dz = -reach; dz <= reach; dz++) {
+          if (Math.abs(dx) + Math.abs(dz) > reach + 1) continue;
+          put(x + dx, base + dy, z + dz);
+        }
+      }
+    }
+  };
+
+  /** A hut with a door on the path, which is what everybody builds first. */
+  const hut = (x0: number, z0: number, wide: number, deep: number, tall: number) => {
+    const base = ground(x0, z0) + 1;
+    for (let dx = 0; dx < wide; dx++) {
+      for (let dz = 0; dz < deep; dz++) {
+        for (let dy = 0; dy < tall; dy++) {
+          if (dx === 0 || dz === 0 || dx === wide - 1 || dz === deep - 1) put(x0 + dx, base + dy, z0 + dz);
+        }
+        put(x0 + dx, base + tall, z0 + dz);
+      }
+    }
+    const door = x0 + Math.floor(wide / 2);
+    solid.delete(key(door, base, wrap(z0)));
+    solid.delete(key(door, base + 1, wrap(z0)));
+  };
+
+  /** A tower of blocks, left unfinished, as they always are. */
+  const tower = (x: number, z: number, tall: number) => {
+    const base = ground(x, z) + 1;
+    for (let k = 0; k < tall; k++) {
+      for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) put(x + dx, base + k, z + dz);
+    }
+    solid.delete(key(x + 1, base + tall - 1, wrap(z + 1)));
+  };
+
+  // Everything anybody built stands back from the path, so that walking it is walking a street
+  // rather than pushing through a thicket of one's own boxes.
+  tree(-9, 5);
+  tree(9, 12, 5);
+  tree(-10, 24);
+  tree(8, 31, 3);
+  hut(8, 17, 5, 5, 3);
+  hut(-11, 33, 4, 4, 2);
+  tower(-9, 14, 6);
+  // A bridge over the path: something nobody needed, which is the point of building it.
+  for (let x = -4; x <= 4; x++) {
+    put(x, ground(0, 27) + 5, 27);
+    put(x, ground(0, 27) + 5, 28);
+  }
+  for (let k = 0; k < 5; k++) {
+    put(-4, ground(-4, 27) + k, 27);
+    put(4, ground(4, 27) + k, 28);
+  }
+
+  // ---- the edges, built once: each one kept with the directions of the faces that meet along it
+  type Edge = { ax: number; ay: number; az: number; bx: number; by: number; bz: number; sides: number };
+  const found = new Map<string, Edge>();
+  const addEdge = (
+    ax: number, ay: number, az: number,
+    bx: number, by: number, bz: number,
+    side: number,
+  ) => {
+    const one = `${ax},${ay},${az}`;
+    const other = `${bx},${by},${bz}`;
+    const id = one < other ? `${one}|${other}` : `${other}|${one}`;
+    const already = found.get(id);
+    if (already) already.sides |= side;
+    else found.set(id, { ax, ay, az, bx, by, bz, sides: side });
+  };
+  const quad = (corners: [number, number, number][], side: number) => {
+    for (let i = 0; i < 4; i++) {
+      const a = corners[i]!;
+      const b = corners[(i + 1) % 4]!;
+      addEdge(a[0], a[1], a[2], b[0], b[1], b[2], side);
+    }
+  };
+  for (const cell of solid) {
+    const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
+    if (!has(x + 1, y, z)) quad([[x + 1, y, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x + 1, y, z + 1]], 1);
+    if (!has(x - 1, y, z)) quad([[x, y, z], [x, y + 1, z], [x, y + 1, z + 1], [x, y, z + 1]], 2);
+    if (!has(x, y + 1, z)) quad([[x, y + 1, z], [x + 1, y + 1, z], [x + 1, y + 1, z + 1], [x, y + 1, z + 1]], 4);
+    if (!has(x, y - 1, z)) quad([[x, y, z], [x + 1, y, z], [x + 1, y, z + 1], [x, y, z + 1]], 8);
+    if (!has(x, y, z + 1)) quad([[x, y, z + 1], [x + 1, y, z + 1], [x + 1, y + 1, z + 1], [x, y + 1, z + 1]], 16);
+    if (!has(x, y, z - 1)) quad([[x, y, z], [x + 1, y, z], [x + 1, y + 1, z], [x, y + 1, z]], 32);
+  }
+  const EDGES = [...found.values()];
+
+  const NEAR = 0.16;
+  const FULL = 7; // as far as an edge is drawn at its darkest
+  const FAR = 21; // and where it has faded away altogether
+  const STEPS = 6; // how many shades the fading is done in
+
+  /*
+   * What the player does, on a loop: walk a while, stop and build a little arch out of four
+   * blocks, look at it, take one back, and walk on. The blocks they place are kept apart from the
+   * world's own — they are few, they come and go, and the world's edges are worked out once.
+   */
+  const WALK = 7.5, BUILD = 4.4, ADMIRE = 1.6, MINE = 1.6, AFTER = 3.5;
+  const beat = WALK + BUILD + ADMIRE + MINE + AFTER;
+  type Block = { x: number; y: number; z: number; born: number };
+  let placed: Block[] = [];
+  let taken = 0; // when the last one was broken, so the break can be animated
   let clock = 0;
+  let swing = 0; // how long ago the arm swung
 
   return (ctx, w, h, dt) => {
     clock += dt;
-    const period = HOLD + MOVE;
-    const n = Math.floor(clock / period) % DESIGNS.length;
-    const from = DESIGNS[n]!, to = DESIGNS[(n + 1) % DESIGNS.length]!;
-    const u = ease((clock % period - HOLD) / MOVE);
+    const round = Math.floor(clock / beat);
+    const inside = clock % beat;
+    const building = inside > WALK && inside <= WALK + BUILD;
+    const admiring = inside > WALK + BUILD && inside <= WALK + BUILD + ADMIRE;
+    const mining = inside > WALK + BUILD + ADMIRE && inside <= WALK + BUILD + ADMIRE + MINE;
+    ctx.fillStyle = PAGE;
+    ctx.fillRect(0, 0, w, h);
 
-    const s = Math.min(w, h - 60);
-    const ox = (w - s) / 2, oy = 4;
-    KINDS.forEach((kind, i) => {
-      const a = from.pieces[i]!, b = to.pieces[i]!;
-      const [cx, cy, pw, ph, turn] = a.map((value, k) => lerp(value, b[k]!, u)) as [number, number, number, number, number];
-      ctx.save();
-      ctx.translate(ox + cx * s, oy + cy * s);
-      ctx.rotate(turn);
-      ctx.beginPath();
-      if (kind === "rect") ctx.rect((-pw * s) / 2, (-ph * s) / 2, pw * s, ph * s);
-      else if (kind === "circle") ctx.ellipse(0, 0, (pw * s) / 2, (ph * s) / 2, 0, 0, TAU);
-      else {
-        ctx.moveTo((-pw * s) / 2, (ph * s) / 2);
-        ctx.lineTo((pw * s) / 2, (ph * s) / 2);
-        ctx.lineTo(0, (-ph * s) / 2);
-        ctx.closePath();
+    // ---- where the walker is, and which way they are looking
+    // They stop to build: the distance covered is the walking part of the beat only.
+    const moved = round * (WALK + AFTER) + Math.min(inside, WALK) + Math.max(0, inside - (WALK + BUILD + ADMIRE + MINE));
+    const travel = moved * 1.9;
+    const camX = 0.8 * Math.sin(travel * 0.11);
+    const camZ = travel;
+    const stride = travel * 2.4;
+    const still = building || admiring || mining;
+    const camY = ground(Math.round(camX), Math.round(camZ)) + 1.66 + (still ? 0 : 0.055 * Math.sin(stride));
+    // While building they look down at what they are doing; walking, they look about.
+    const aim = building || mining ? 1 : admiring ? 1 : 0;
+    const yaw = (1 - aim) * (0.26 * Math.sin(travel * 0.14)) + aim * 0.5;
+    const pitch = -0.07 - aim * 0.22 + (still ? 0 : 0.018 * Math.sin(stride + 0.8));
+    const [cy, sy] = [Math.cos(yaw), Math.sin(yaw)];
+    const [cp, sp] = [Math.cos(pitch), Math.sin(pitch)];
+    const f = h * 0.92;
+    /** A point of the world, in what the eye sees: across, up, and how far off. */
+    const seen = (x: number, y: number, z: number) => {
+      const [dx, dy, dz] = [x - camX, y - camY, z - camZ];
+      return [
+        dx * cy - dz * sy,
+        -dx * sy * sp + dy * cp - dz * cy * sp,
+        dx * sy * cp + dy * sp + dz * cy * cp,
+      ] as [number, number, number];
+    };
+    const onScreen = (x: number, y: number, z: number) => {
+      const [sxv, syv, sz] = seen(x, y, z);
+      return sz < NEAR ? null : ([w / 2 + (f * sxv) / sz, h / 2 - (f * syv) / sz, sz] as [number, number, number]);
+    };
+
+    // The lines are gathered by how far off they are and each shade drawn in one go, since a
+    // stroke apiece for a few thousand of them is the whole frame's time.
+    const shades: Path2D[] = Array.from({ length: STEPS }, () => new Path2D());
+    const copies = [Math.floor(camZ / L) * L, (Math.floor(camZ / L) + 1) * L];
+    for (const shift of copies) {
+      for (const edge of EDGES) {
+        const [az, bz] = [edge.az + shift, edge.bz + shift];
+        // Which side of this edge faces the walker: with nothing filled in, a face turned away
+        // would show through the one in front of it.
+        const [mx, my, mz] = [(edge.ax + edge.bx) / 2, (edge.ay + edge.by) / 2, (az + bz) / 2];
+        const [ox, oy, oz] = [mx - camX, my - camY, mz - camZ];
+        const facing =
+          ((edge.sides & 1) !== 0 && ox < 0) ||
+          ((edge.sides & 2) !== 0 && ox > 0) ||
+          ((edge.sides & 4) !== 0 && oy < 0) ||
+          ((edge.sides & 8) !== 0 && oy > 0) ||
+          ((edge.sides & 16) !== 0 && oz < 0) ||
+          ((edge.sides & 32) !== 0 && oz > 0);
+        if (!facing) continue;
+        if (oz > FAR + 2 || Math.hypot(ox, oy, oz) > FAR + 3) continue;
+
+        let one = seen(edge.ax, edge.ay, az);
+        let other = seen(edge.bx, edge.by, bz);
+        if (one[2] < NEAR && other[2] < NEAR) continue;
+        if (one[2] < NEAR || other[2] < NEAR) {
+          const [behind, ahead] = one[2] < NEAR ? [one, other] : [other, one];
+          const along = (NEAR - behind[2]) / (ahead[2] - behind[2]);
+          const cut: [number, number, number] = [
+            behind[0] + (ahead[0] - behind[0]) * along,
+            behind[1] + (ahead[1] - behind[1]) * along,
+            NEAR,
+          ];
+          if (one[2] < NEAR) one = cut;
+          else other = cut;
+        }
+        const away = (one[2] + other[2]) / 2;
+        if (away > FAR) continue;
+        const dim = away <= FULL ? 0 : Math.min(STEPS - 1, Math.floor(((away - FULL) / (FAR - FULL)) * STEPS));
+        const path = shades[dim]!;
+        path.moveTo(w / 2 + (f * one[0]) / one[2], h / 2 - (f * one[1]) / one[2]);
+        path.lineTo(w / 2 + (f * other[0]) / other[2], h / 2 - (f * other[1]) / other[2]);
       }
-      ctx.fillStyle = u > 0 && u < 1 ? ORANGE_SOFT : PAGE;
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      ctx.restore();
+    }
+    ctx.lineWidth = 1;
+    ctx.lineCap = "round";
+    shades.forEach((path, i) => {
+      ctx.strokeStyle = `rgba(27, 29, 34, ${(0.9 * (STEPS - i)) / STEPS})`;
+      ctx.stroke(path);
     });
 
-    const lit = u < 0.5 ? n : (n + 1) % DESIGNS.length;
-    sequence(ctx, arrows(DESIGNS.map((d) => d.name), lit), w / 2, h - 40, 17);
-    caption(ctx, "las mismas seis piezas; lo que se hace con ellas lo decide quien juega", w / 2, h - 14, 14);
+    // ---- what the crosshair is on: the block hit, and the empty cell just before it
+    const look: [number, number, number] = [sy * cp, sp, cy * cp];
+    const standing = (x: number, y: number, z: number) =>
+      has(x, y, z) || placed.some((b) => b.x === x && b.y === y && b.z === z);
+    let aimed: [number, number, number] | null = null;
+    let against: [number, number, number] | null = null;
+    {
+      let last: [number, number, number] | null = null;
+      for (let step = 0.1; step < 6 && !aimed; step += 0.04) {
+        const cell: [number, number, number] = [
+          Math.floor(camX + look[0] * step),
+          Math.floor(camY + look[1] * step),
+          Math.floor(camZ + look[2] * step),
+        ];
+        if (standing(cell[0], cell[1], cell[2])) {
+          aimed = cell;
+          against = last;
+        } else last = cell;
+      }
+    }
+
+    // ---- building: one block every so often, laid against whatever is being looked at
+    if (building && against) {
+      const wanted = Math.floor((inside - WALK) / (BUILD / 4));
+      if (placed.length <= wanted && placed.length < 4) {
+        const at = against;
+        if (!placed.some((b) => b.x === at[0] && b.y === at[1] && b.z === at[2])) {
+          placed.push({ x: at[0], y: at[1], z: at[2], born: clock });
+          swing = clock;
+        }
+      }
+    }
+    if (mining && placed.length > 0 && clock - taken > MINE * 0.7) {
+      taken = clock;
+      placed.pop();
+      swing = clock;
+    }
+    // Each round starts afresh: blocks left behind would be walked through, and a block standing
+    // where the eye is turns the picture into a wall.
+    if (inside < 0.2 && placed.length > 0) placed = [];
+
+    // ---- the blocks they put there, drawn whole: they are what the walk is for
+    const cube = (x: number, y: number, z: number, paint: string, width: number, grow = 1) => {
+      const box = new Path2D();
+      const pad = (1 - grow) / 2;
+      const rung = (
+        x1: number, y1: number, z1: number,
+        x2: number, y2: number, z2: number,
+      ) => {
+        const a = onScreen(x + pad + x1 * grow, y + pad + y1 * grow, z + pad + z1 * grow);
+        const b = onScreen(x + pad + x2 * grow, y + pad + y2 * grow, z + pad + z2 * grow);
+        if (!a || !b) return;
+        box.moveTo(a[0], a[1]);
+        box.lineTo(b[0], b[1]);
+      };
+      for (let k = 0; k < 2; k++) {
+        rung(0, k, 0, 1, k, 0);
+        rung(1, k, 0, 1, k, 1);
+        rung(1, k, 1, 0, k, 1);
+        rung(0, k, 1, 0, k, 0);
+      }
+      for (const [dx, dz] of [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][]) rung(dx, 0, dz, dx, 1, dz);
+      ctx.strokeStyle = paint;
+      ctx.lineWidth = width;
+      ctx.stroke(box);
+    };
+    for (const block of placed) {
+      const age = clamp01((clock - block.born) / 0.25);
+      cube(block.x, block.y, block.z, INK, 1.6, 0.4 + 0.6 * ease(age));
+    }
+    // The block being broken shows the cracks first, the way it does in the game.
+    if (mining && placed.length > 0) {
+      const last = placed[placed.length - 1]!;
+      const going = clamp01((inside - (WALK + BUILD + ADMIRE)) / (MINE * 0.7));
+      ctx.strokeStyle = MUTED;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k < Math.floor(going * 6); k++) {
+        const a = onScreen(last.x + 0.1 + (k % 3) * 0.3, last.y + 0.15 + Math.floor(k / 3) * 0.4, last.z + 1.001);
+        const b = onScreen(last.x + 0.35 + (k % 3) * 0.3, last.y + 0.5 + Math.floor(k / 3) * 0.4, last.z + 1.001);
+        if (!a || !b) continue;
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+      }
+      ctx.stroke();
+    }
+    // Not when it is right against the eye: a block at arm's length fills the screen with its
+    // own edges and there is nothing left to see.
+    if (aimed && Math.hypot(aimed[0] + 0.5 - camX, aimed[1] + 0.5 - camY, aimed[2] + 0.5 - camZ) > 1.4) {
+      cube(aimed[0], aimed[1], aimed[2], ORANGE, 2);
+    }
+
+    // ---- the hand, holding a block, swinging when it is used
+    const swung = Math.max(0, 1 - (clock - swing) / 0.35);
+    const arm = Math.sin(swung * Math.PI) * h * 0.06 + (still ? 0 : Math.sin(stride) * h * 0.008);
+    ctx.save();
+    ctx.translate(w * 0.82, h - h * 0.07 + arm);
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    const hand = Math.min(w, h) * 0.17;
+    // a block held out in front, drawn the way the game shows it: three faces of a cube
+    ctx.beginPath();
+    ctx.moveTo(0, -hand * 0.95);
+    ctx.lineTo(hand * 0.62, -hand * 0.6);
+    ctx.lineTo(hand * 0.62, hand * 0.12);
+    ctx.lineTo(0, hand * 0.48);
+    ctx.lineTo(-hand * 0.62, hand * 0.12);
+    ctx.lineTo(-hand * 0.62, -hand * 0.6);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-hand * 0.62, -hand * 0.6);
+    ctx.lineTo(0, -hand * 0.25);
+    ctx.lineTo(hand * 0.62, -hand * 0.6);
+    ctx.moveTo(0, -hand * 0.25);
+    ctx.lineTo(0, hand * 0.48);
+    ctx.stroke();
+    ctx.restore();
+
+    // ---- the crosshair and the hotbar: the whole of the interface
+    ctx.strokeStyle = MUTED;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(w / 2 - 9, h / 2);
+    ctx.lineTo(w / 2 + 9, h / 2);
+    ctx.moveTo(w / 2, h / 2 - 9);
+    ctx.lineTo(w / 2, h / 2 + 9);
+    ctx.stroke();
+
+    const slot = Math.min(w / 12, h * 0.062);
+    const bar = slot * 9;
+    const barY = h - slot * 1.4;
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = FAINT;
+    for (let k = 0; k < 9; k++) ctx.strokeRect(w / 2 - bar / 2 + k * slot, barY, slot, slot);
+    // what is in the hand is the slot that is lit
+    const held = 2;
+    ctx.strokeStyle = ORANGE;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(w / 2 - bar / 2 + held * slot - 1.5, barY - 1.5, slot + 3, slot + 3);
+    // a few of the slots have something in them, drawn as the little cube each one is
+    ctx.strokeStyle = MUTED;
+    ctx.lineWidth = 1;
+    for (const k of [0, 1, 2, 4, 7]) {
+      const [cx, cyy] = [w / 2 - bar / 2 + k * slot + slot / 2, barY + slot / 2];
+      const r = slot * 0.26;
+      ctx.beginPath();
+      ctx.moveTo(cx, cyy - r);
+      ctx.lineTo(cx + r, cyy - r * 0.45);
+      ctx.lineTo(cx + r, cyy + r * 0.45);
+      ctx.lineTo(cx, cyy + r);
+      ctx.lineTo(cx - r, cyy + r * 0.45);
+      ctx.lineTo(cx - r, cyy - r * 0.45);
+      ctx.closePath();
+      ctx.moveTo(cx - r, cyy - r * 0.45);
+      ctx.lineTo(cx, cyy);
+      ctx.lineTo(cx + r, cyy - r * 0.45);
+      ctx.moveTo(cx, cyy);
+      ctx.lineTo(cx, cyy + r);
+      ctx.stroke();
+    }
+    // hearts over the bar, which is how anybody knows at a glance what game this is
+    const heart = slot * 0.3;
+    for (let k = 0; k < 10; k++) {
+      const [hx, hy] = [w / 2 - bar / 2 + k * (heart * 1.5) + heart * 0.6, barY - heart * 1.9];
+      ctx.beginPath();
+      ctx.moveTo(hx, hy + heart * 0.7);
+      ctx.bezierCurveTo(hx - heart * 1.3, hy - heart * 0.3, hx - heart * 0.4, hy - heart * 1.1, hx, hy - heart * 0.3);
+      ctx.bezierCurveTo(hx + heart * 0.4, hy - heart * 1.1, hx + heart * 1.3, hy - heart * 0.3, hx, hy + heart * 0.7);
+      ctx.strokeStyle = k < 9 ? MUTED : FAINT;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
   };
 }
 
@@ -271,359 +595,670 @@ function floor(): Frame {
   };
 }
 
-/* ---- 3. powerful ideas made salient: a line follower, and the loop that keeps it on the line ---- */
+/* ---- a child, drawn with as few strokes as will still read as one ---- */
 
+/**
+ * A child, standing, `tall` pixels from head to heel at (x, y) — y being the ground under them.
+ *
+ * Two of these slides are about somebody doing something rather than about the thing being done,
+ * so the figure has to be plain enough to sit beside a drawing without competing with it.
+ */
+function child(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  tall: number,
+  arms: { left: [number, number]; right: [number, number] },
+) {
+  const head = tall * 0.15;
+  const [neck, hip] = [y - tall * 0.7, y - tall * 0.34];
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = Math.max(1.5, tall * 0.022);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.arc(x, y - tall * 0.85, head, 0, TAU);
+  ctx.moveTo(x, neck);
+  ctx.lineTo(x, hip);
+  ctx.moveTo(x, hip);
+  ctx.lineTo(x - tall * 0.12, y);
+  ctx.moveTo(x, hip);
+  ctx.lineTo(x + tall * 0.12, y);
+  const shoulder = y - tall * 0.64;
+  ctx.moveTo(x, shoulder);
+  ctx.lineTo(x + arms.left[0] * tall, shoulder + arms.left[1] * tall);
+  ctx.moveTo(x, shoulder);
+  ctx.lineTo(x + arms.right[0] * tall, shoulder + arms.right[1] * tall);
+  ctx.stroke();
+}
+
+/** dy/dx, set as a fraction, the way it is written by hand. */
+function derivative(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, alpha: number) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = ORANGE;
+  ctx.strokeStyle = ORANGE;
+  ctx.font = `italic ${size}px ${SERIF}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("dy", x, y - size * 0.22);
+  ctx.fillText("dx", x, y + size * 0.96);
+  ctx.lineWidth = Math.max(1, size * 0.045);
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.46, y + size * 0.1);
+  ctx.lineTo(x + size * 0.46, y + size * 0.1);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* ---- 3. powerful ideas made salient: a child after a circle, and what turns up on the way ---- */
+
+/**
+ * Somebody playing with the turtle decides to draw a circle, and tries.
+ *
+ * The first go is a square, the second an octagon, the third a turn of one degree at a time — and
+ * that third one is a circle, near enough to satisfy anybody. Nobody was taught that a curve is
+ * what a great many small turns come to; it is what the third attempt *is*, and that is the idea
+ * arriving while the thing is being played with rather than being handed over in a lesson.
+ */
 function salient(): Frame {
+  const TRIES = [
+    { sides: 4, step: 1, says: "repeat 4 [fd 120 rt 90]" },
+    { sides: 8, step: 1, says: "repeat 8 [fd 62 rt 45]" },
+    { sides: 90, step: 1, says: "repeat 90 [fd 5.6 rt 4]" },
+  ];
+  const IDEA = 1.6, DRAW = 2.3, HOLD = 1.1, PROUD = 3.2;
+  const period = IDEA + TRIES.length * (DRAW + HOLD) + PROUD;
   let clock = 0;
-  let offset = 0, speed = 0;
-  let nextKick = 1.5;
-  const history: number[] = [];
+
+  /** The corners of a regular polygon of the given number of sides, drawn the turtle's way. */
+  const corners = (sides: number) => {
+    const points: [number, number][] = [[0, 0]];
+    let [x, y, heading] = [0, 0, -Math.PI / 2];
+    const side = (TAU * 1) / sides; // a unit circle's perimeter, cut into equal steps
+    for (let k = 0; k < sides; k++) {
+      x += Math.cos(heading) * side;
+      y += Math.sin(heading) * side;
+      heading += TAU / sides;
+      points.push([x, y]);
+    }
+    return points;
+  };
+  const SHAPES = TRIES.map((each) => {
+    const points = corners(each.sides);
+    const xs = points.map((p) => p[0]);
+    const ys = points.map((p) => p[1]);
+    const middle: [number, number] = [
+      (Math.min(...xs) + Math.max(...xs)) / 2,
+      (Math.min(...ys) + Math.max(...ys)) / 2,
+    ];
+    const reach = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    return { ...each, points, middle, reach };
+  });
 
   return (ctx, w, h, dt) => {
-    clock += dt;
-    if (clock > nextKick) {
-      speed += (Math.random() < 0.5 ? -1 : 1) * (70 + Math.random() * 50);
-      nextKick = clock + 2.6 + Math.random() * 1.4;
-    }
-    // Feedback: the farther from the line, the harder it steers back.
-    speed += (-7 * offset - 2.4 * speed) * dt;
-    offset += speed * dt;
-    history.push(offset);
-    if (history.length > 360) history.shift();
-
-    // The track, a wavy loop on the left.
-    const cx = w * 0.32, cy = (h - 30) / 2, rx = w * 0.25, ry = (h - 30) * 0.36;
-    const at = (a: number) => {
-      const r = 1 + 0.08 * Math.sin(3 * a);
-      return [cx + rx * r * Math.cos(a), cy + ry * r * Math.sin(a)] as const;
-    };
-    ctx.strokeStyle = FAINT;
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    for (let k = 0; k <= 200; k++) {
-      const [x, y] = at((k / 200) * TAU);
-      if (k === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    const a = clock * 0.45;
-    const [px, py] = at(a);
-    const [qx, qy] = at(a + 0.01);
-    const tx = qx - px, ty = qy - py, len = Math.hypot(tx, ty) || 1;
-    const nx = -ty / len, ny = tx / len;
-    const off = Math.max(-40, Math.min(40, offset));
-    const rx0 = px + nx * off, ry0 = py + ny * off;
-    const lost = Math.abs(offset) > 6;
-    ctx.save();
-    ctx.translate(rx0, ry0);
-    ctx.rotate(Math.atan2(ty, tx) - Math.atan(speed / 120));
+    clock = (clock + dt) % period;
     ctx.fillStyle = PAGE;
+    ctx.fillRect(0, 0, w, h);
+
+    const floor = h - 52;
+    const tall = Math.min(h * 0.42, 150);
+    const kid = w * 0.17;
+    const stage: [number, number] = [w * 0.62, h * 0.46];
+    const size = Math.min(w * 0.42, h * 0.62);
+
+    // Which attempt is being drawn, and how far into it.
+    let at = clock - IDEA;
+    let round = -1;
+    let along = 0;
+    let settled = false;
+    if (at >= 0) {
+      round = Math.min(TRIES.length - 1, Math.floor(at / (DRAW + HOLD)));
+      const inside = at - round * (DRAW + HOLD);
+      along = clamp01(inside / DRAW);
+      settled = inside > DRAW;
+      if (at >= TRIES.length * (DRAW + HOLD)) {
+        round = TRIES.length - 1;
+        along = 1;
+        settled = true;
+      }
+    }
+    const done = clock > IDEA + TRIES.length * (DRAW + HOLD);
+    const rest = done ? clock - (IDEA + TRIES.length * (DRAW + HOLD)) : 0;
+
+    // ---- the idea: a circle, in a bubble over their head
+    if (clock < IDEA + 0.6) {
+      const show = ease(clock / 0.6) * (1 - ease((clock - IDEA) / 0.6));
+      ctx.save();
+      ctx.globalAlpha = show;
+      ctx.strokeStyle = MUTED;
+      ctx.lineWidth = 1.4;
+      const [bx, by] = [kid + tall * 0.42, floor - tall * 1.16];
+      ctx.beginPath();
+      ctx.arc(bx, by, tall * 0.26, 0, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(kid + tall * 0.2, floor - tall * 0.95, tall * 0.035, 0, TAU);
+      ctx.moveTo(kid + tall * 0.29, floor - tall * 1.02);
+      ctx.arc(kid + tall * 0.26, floor - tall * 1.02, tall * 0.055, 0, TAU);
+      ctx.stroke();
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = ORANGE;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(bx, by, tall * 0.15, 0, TAU);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // ---- the attempt itself
+    if (round >= 0) {
+      const shape = SHAPES[round]!;
+      const scale = (size * 0.8) / shape.reach;
+      const place = ([px, py]: [number, number]): [number, number] => [
+        stage[0] + (px - shape.middle[0]) * scale,
+        stage[1] + (py - shape.middle[1]) * scale,
+      ];
+      const upto = along * shape.sides;
+      const whole = Math.floor(upto);
+      ctx.strokeStyle = round === TRIES.length - 1 && settled ? ORANGE : INK;
+      ctx.lineWidth = round === TRIES.length - 1 && settled ? 3 : 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      const first = place(shape.points[0]!);
+      ctx.moveTo(first[0], first[1]);
+      for (let k = 1; k <= Math.min(whole, shape.sides); k++) {
+        const next = place(shape.points[k]!);
+        ctx.lineTo(next[0], next[1]);
+      }
+      let pen = place(shape.points[Math.min(whole, shape.sides)]!);
+      if (whole < shape.sides) {
+        const from = shape.points[whole]!;
+        const to = shape.points[whole + 1]!;
+        const part = upto - whole;
+        pen = place([from[0] + (to[0] - from[0]) * part, from[1] + (to[1] - from[1]) * part]);
+        ctx.lineTo(pen[0], pen[1]);
+      }
+      ctx.stroke();
+
+      // the turtle, where the pen is
+      if (!settled) {
+        ctx.fillStyle = ORANGE;
+        ctx.beginPath();
+        ctx.arc(pen[0], pen[1], 5, 0, TAU);
+        ctx.fill();
+      }
+      caption(ctx, shape.says, stage[0], h - 18, 15, settled && round === 2 ? ORANGE : MUTED);
+    }
+
+    // ---- the child, and what came to them once the circle came out
+    const wave = done ? Math.sin(rest * 6) * 0.06 : 0;
+    child(ctx, kid, floor, tall, {
+      left: [-0.26, 0.1],
+      right: done ? [0.3, -0.26 + wave] : [0.26, 0.12],
+    });
+    if (done) {
+      const rise = clamp01(rest / PROUD);
+      derivative(
+        ctx,
+        kid + tall * 0.1,
+        floor - tall * 1.06 - rise * tall * 0.5,
+        tall * 0.3,
+        Math.min(1, rest / 0.5) * (1 - ease((rest - PROUD * 0.62) / (PROUD * 0.38))),
+      );
+    }
+  };
+}
+
+/* ---- 4. many paths, many styles: the same afternoon painted twice ---- */
+
+/**
+ * Two pictures being painted side by side: a landscape on the left, and on the right the same
+ * afternoon as blocks of colour and a few marks.
+ *
+ * Neither is the picture the other was trying to make, and neither is late: the realist lays a
+ * horizon and then keeps adding, the abstract lays one big shape and then decides. A kit that
+ * suits only one of those two ways of working has already chosen who it is for.
+ */
+function paths(): Frame {
+  type Stroke = { at: number; draw: (ctx: CanvasRenderingContext2D, s: number, u: number) => void };
+  const SHOW = 7.5, LINGER = 1.8;
+
+  /** The realist's picture: a horizon, hills, a tree, a sun, and then the small things. */
+  const REAL: Stroke[] = [
+    { at: 0.0, draw: (c, s, u) => { c.strokeStyle = MUTED; c.lineWidth = 1.4; c.beginPath(); c.moveTo(0.06 * s, 0.6 * s); c.lineTo((0.06 + 0.88 * u) * s, 0.6 * s); c.stroke(); } },
+    { at: 0.12, draw: (c, s, u) => { c.strokeStyle = INK; c.lineWidth = 1.8; c.beginPath(); c.moveTo(0.06 * s, 0.6 * s); for (let k = 0; k <= 40 * u; k++) { const t = k / 40; c.lineTo((0.06 + 0.5 * t) * s, (0.6 - 0.16 * Math.sin(t * 3.1)) * s); } c.stroke(); } },
+    { at: 0.24, draw: (c, s, u) => { c.strokeStyle = INK; c.lineWidth = 1.8; c.beginPath(); c.moveTo(0.42 * s, 0.53 * s); for (let k = 0; k <= 40 * u; k++) { const t = k / 40; c.lineTo((0.42 + 0.52 * t) * s, (0.53 + 0.1 * Math.sin(t * 2.4 + 1)) * s); } c.stroke(); } },
+    { at: 0.36, draw: (c, s, u) => { c.strokeStyle = ORANGE; c.lineWidth = 2; c.beginPath(); c.arc(0.74 * s, 0.26 * s, 0.09 * s, -Math.PI / 2, -Math.PI / 2 + TAU * u); c.stroke(); } },
+    { at: 0.48, draw: (c, s, u) => { c.strokeStyle = INK; c.lineWidth = 2.4; c.beginPath(); c.moveTo(0.28 * s, 0.6 * s); c.lineTo(0.28 * s, (0.6 - 0.2 * u) * s); c.stroke(); } },
+    { at: 0.58, draw: (c, s, u) => { c.strokeStyle = INK; c.lineWidth = 1.6; c.beginPath(); c.arc(0.28 * s, 0.34 * s, 0.11 * s, 0, TAU * u); c.stroke(); } },
+    { at: 0.7, draw: (c, s, u) => { c.strokeStyle = INK; c.lineWidth = 1.6; c.beginPath(); c.rect(0.52 * s, (0.6 - 0.13 * u) * s, 0.14 * s, 0.13 * u * s); c.stroke(); c.beginPath(); c.moveTo(0.5 * s, (0.6 - 0.13) * s); c.lineTo(0.59 * s, (0.6 - 0.22 * u) * s); c.lineTo(0.68 * s, (0.6 - 0.13) * s); c.stroke(); } },
+    { at: 0.82, draw: (c, s, u) => { c.strokeStyle = MUTED; c.lineWidth = 1.2; c.beginPath(); for (let k = 0; k < 6 * u; k++) { const t = 0.1 + k * 0.14; c.moveTo(t * s, (0.68 + (k % 2) * 0.05) * s); c.lineTo((t + 0.06) * s, (0.68 + (k % 2) * 0.05) * s); } c.stroke(); } },
+  ];
+
+  /** The other one: three shapes laid down big, and then a few marks over them. */
+  const ABSTRACT: Stroke[] = [
+    { at: 0.04, draw: (c, s, u) => { c.fillStyle = ORANGE_SOFT; c.fillRect(0.1 * s, 0.14 * s, 0.46 * s * u, 0.4 * s); } },
+    { at: 0.2, draw: (c, s, u) => { c.fillStyle = "rgba(27, 29, 34, 0.08)"; c.beginPath(); c.arc(0.66 * s, 0.42 * s, 0.2 * s * u, 0, TAU); c.fill(); } },
+    { at: 0.34, draw: (c, s, u) => { c.strokeStyle = INK; c.lineWidth = 3.2; c.beginPath(); c.moveTo(0.16 * s, 0.66 * s); c.lineTo((0.16 + 0.68 * u) * s, (0.66 - 0.26 * u) * s); c.stroke(); } },
+    { at: 0.48, draw: (c, s, u) => { c.strokeStyle = ORANGE; c.lineWidth = 2.4; c.beginPath(); c.arc(0.34 * s, 0.34 * s, 0.13 * s, 0.6, 0.6 + 4.4 * u); c.stroke(); } },
+    { at: 0.6, draw: (c, s, u) => { c.fillStyle = INK; for (let k = 0; k < 7 * u; k++) c.fillRect((0.2 + k * 0.09) * s, (0.72 + (k % 3) * 0.04) * s, 0.035 * s, 0.035 * s); } },
+    { at: 0.74, draw: (c, s, u) => { c.strokeStyle = MUTED; c.lineWidth = 1.6; c.beginPath(); for (let k = 0; k < 5; k++) { const t = k / 4; c.moveTo((0.62 + t * 0.26) * s, 0.14 * s); c.lineTo((0.62 + t * 0.26) * s, (0.14 + 0.3 * u) * s); } c.stroke(); } },
+    { at: 0.86, draw: (c, s, u) => { c.strokeStyle = ORANGE; c.lineWidth = 2; c.beginPath(); c.moveTo(0.58 * s, 0.6 * s); c.lineTo((0.58 + 0.2 * u) * s, (0.6 + 0.16 * u) * s); c.stroke(); } },
+  ];
+
+  let clock = 0;
+  return (ctx, w, h, dt) => {
+    clock = (clock + dt) % (SHOW + LINGER);
+    ctx.fillStyle = PAGE;
+    ctx.fillRect(0, 0, w, h);
+    const u = clamp01(clock / SHOW);
+
+    const s = Math.min(w * 0.44, h * 0.74);
+    const tops = h * 0.12;
+    const frames: [number, Stroke[], string][] = [
+      [w * 0.5 - s - w * 0.02, REAL, "realista"],
+      [w * 0.5 + w * 0.02, ABSTRACT, "abstracto"],
+    ];
+    for (const [left, strokes, name] of frames) {
+      ctx.save();
+      ctx.translate(left, tops);
+      // the canvas on its easel
+      ctx.strokeStyle = FAINT;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, s, s * 0.8);
+      ctx.beginPath();
+      ctx.moveTo(s * 0.5, s * 0.8);
+      ctx.lineTo(s * 0.5, s * 0.94);
+      ctx.moveTo(s * 0.32, s * 0.98);
+      ctx.lineTo(s * 0.5, s * 0.8);
+      ctx.lineTo(s * 0.68, s * 0.98);
+      ctx.stroke();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, s, s * 0.8);
+      ctx.clip();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const stroke of strokes) {
+        const along = clamp01((u - stroke.at) / 0.13);
+        if (along <= 0) continue;
+        stroke.draw(ctx, s, ease(along));
+      }
+      ctx.restore();
+      caption(ctx, name, s / 2, s * 1.1, 15);
+      ctx.restore();
+    }
+    caption(ctx, "el mismo material, dos maneras de trabajar", w / 2, h - 14, 14);
+  };
+}
+
+/* ---- 5. as simple as possible, and maybe simpler: the robot with everything taken off it ---- */
+
+/**
+ * A robot with far too much on it, losing a part at a time until it is one a child can use.
+ *
+ * Every part taken away is a real feature, and each of them was somebody's good idea. What is left
+ * over is the thing that can be picked up: the remote comes out only once the robot is simple
+ * enough to be worth pointing it at.
+ */
+function simple(): Frame {
+  type Part = {
+    /** how far into the stripping it goes, from 0 (first off) */
+    off: number;
+    draw: (ctx: CanvasRenderingContext2D, s: number) => void;
+  };
+  // The body everybody keeps, drawn last so the extras sit behind it.
+  const core = (ctx: CanvasRenderingContext2D, s: number, blink: number, tilt: number) => {
+    ctx.save();
+    ctx.rotate(tilt);
     ctx.strokeStyle = INK;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = s * 0.018;
+    ctx.lineJoin = "round";
+    ctx.fillStyle = PAGE;
+    // body
     ctx.beginPath();
-    ctx.rect(-11, -8, 22, 16);
+    ctx.roundRect(-0.3 * s, -0.22 * s, 0.6 * s, 0.52 * s, 0.07 * s);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = lost ? ORANGE : INK;
+    // head
     ctx.beginPath();
-    ctx.arc(15, 0, 3.5, 0, TAU);
+    ctx.roundRect(-0.22 * s, -0.56 * s, 0.44 * s, 0.32 * s, 0.06 * s);
     ctx.fill();
+    ctx.stroke();
+    // eyes, and a mouth that is only a line
+    ctx.fillStyle = INK;
+    for (const dx of [-0.09, 0.09]) {
+      ctx.beginPath();
+      ctx.ellipse(dx * s, -0.44 * s, 0.035 * s, 0.035 * s * blink, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-0.07 * s, -0.33 * s);
+    ctx.quadraticCurveTo(0, -0.28 * s, 0.07 * s, -0.33 * s);
+    ctx.stroke();
+    // arms and wheels
+    ctx.beginPath();
+    ctx.moveTo(-0.3 * s, -0.08 * s);
+    ctx.lineTo(-0.44 * s, 0.06 * s);
+    ctx.moveTo(0.3 * s, -0.08 * s);
+    ctx.lineTo(0.44 * s, 0.06 * s);
+    ctx.stroke();
+    ctx.fillStyle = PAGE;
+    for (const dx of [-0.17, 0.17]) {
+      ctx.beginPath();
+      ctx.arc(dx * s, 0.34 * s, 0.075 * s, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+  // Everything else: each of them useful, each of them one more thing to understand.
+  const EXTRAS: Part[] = [
+    { off: 0, draw: (c, s) => { c.beginPath(); c.arc(0.02 * s, -0.92 * s, 0.13 * s, Math.PI * 0.15, Math.PI * 0.85, true); c.moveTo(0.02 * s, -0.79 * s); c.lineTo(0.02 * s, -0.6 * s); c.stroke(); } },
+    { off: 1, draw: (c, s) => { for (const dx of [-0.16, 0.16]) { c.beginPath(); c.moveTo(dx * s, -0.56 * s); c.lineTo(dx * 1.7 * s, -0.86 * s); c.arc(dx * 1.7 * s, -0.88 * s, 0.022 * s, 0, TAU); c.stroke(); } } },
+    { off: 2, draw: (c, s) => { c.beginPath(); c.rect(-0.62 * s, -0.16 * s, 0.24 * s, 0.34 * s); c.moveTo(-0.5 * s, -0.16 * s); c.lineTo(-0.5 * s, 0.18 * s); c.moveTo(-0.62 * s, 0.01 * s); c.lineTo(-0.38 * s, 0.01 * s); c.stroke(); } },
+    { off: 3, draw: (c, s) => { c.beginPath(); c.moveTo(0.3 * s, 0.1 * s); c.lineTo(0.62 * s, 0.24 * s); c.lineTo(0.72 * s, 0.14 * s); c.moveTo(0.62 * s, 0.24 * s); c.lineTo(0.7 * s, 0.34 * s); c.stroke(); } },
+    { off: 4, draw: (c, s) => { for (let k = 0; k < 6; k++) { c.beginPath(); c.arc((-0.2 + k * 0.08) * s, 0.2 * s, 0.022 * s, 0, TAU); c.stroke(); } } },
+    { off: 5, draw: (c, s) => { c.beginPath(); c.arc(-0.13 * s, -0.02 * s, 0.075 * s, 0, TAU); c.moveTo(-0.13 * s, -0.02 * s); c.lineTo(-0.09 * s, -0.07 * s); c.stroke(); } },
+    { off: 6, draw: (c, s) => { c.beginPath(); c.rect(0.02 * s, -0.12 * s, 0.2 * s, 0.14 * s); for (let k = 1; k < 4; k++) { c.moveTo((0.02 + k * 0.05) * s, -0.12 * s); c.lineTo((0.02 + k * 0.05) * s, 0.02 * s); } c.stroke(); } },
+    { off: 7, draw: (c, s) => { c.beginPath(); c.moveTo(-0.44 * s, 0.06 * s); c.lineTo(-0.56 * s, 0.4 * s); c.moveTo(0.44 * s, 0.06 * s); c.lineTo(0.58 * s, 0.4 * s); c.stroke(); } },
+    { off: 8, draw: (c, s) => { c.beginPath(); c.rect(-0.34 * s, 0.3 * s, 0.68 * s, 0.1 * s); for (let k = 0; k < 5; k++) { c.moveTo((-0.3 + k * 0.15) * s, 0.3 * s); c.lineTo((-0.3 + k * 0.15) * s, 0.4 * s); } c.stroke(); } },
+  ];
+  const STRIP = 0.62; // how long one part takes to go
+  const WAIT = 1.4;
+  const PLAY = 5.4;
+  const period = WAIT + EXTRAS.length * STRIP + PLAY;
+  let clock = 0;
+
+  return (ctx, w, h, dt) => {
+    clock = (clock + dt) % period;
+    ctx.fillStyle = PAGE;
+    ctx.fillRect(0, 0, w, h);
+
+    const floor = h - 46;
+    const tall = Math.min(h * 0.4, 145);
+    const s = Math.min(w * 0.34, h * 0.52);
+    const robot: [number, number] = [w * 0.64, floor - s * 0.5];
+    const stripped = clamp01((clock - WAIT) / (EXTRAS.length * STRIP));
+    const gone = ((clock - WAIT) / STRIP);
+    const playing = clock > WAIT + EXTRAS.length * STRIP;
+    const rest = playing ? clock - (WAIT + EXTRAS.length * STRIP) : 0;
+
+    // ---- the robot, with whatever is still bolted to it
+    ctx.save();
+    ctx.translate(robot[0], robot[1]);
+    ctx.lineCap = "round";
+    for (const part of EXTRAS) {
+      const leaving = clamp01(gone - part.off);
+      if (leaving >= 1) continue;
+      ctx.save();
+      ctx.globalAlpha = 1 - ease(leaving);
+      // Coming off, a part drifts away rather than blinking out, so it reads as a decision.
+      ctx.translate(ease(leaving) * s * 0.5, -ease(leaving) * s * 0.35);
+      ctx.strokeStyle = MUTED;
+      ctx.lineWidth = s * 0.014;
+      part.draw(ctx, s);
+      ctx.restore();
+    }
+    const roll = playing ? Math.sin(rest * 2.1) * s * 0.28 : 0;
+    ctx.translate(roll, 0);
+    const blink = playing && Math.sin(rest * 3.4) > 0.93 ? 0.15 : 1;
+    core(ctx, s, blink, playing ? Math.sin(rest * 2.1 + Math.PI / 2) * 0.05 : 0);
     ctx.restore();
 
-    // The loop that does it: sensor, decide, motor, and round again.
-    const lx = w * 0.8, ly = (h - 30) * 0.3, R = Math.min(w * 0.12, (h - 30) * 0.2);
-    const names = ["sensor", "decide", "motor"];
-    const pulse = (clock * 0.8) % 1;
-    ctx.strokeStyle = MUTED;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(lx, ly, R, 0, TAU);
-    ctx.stroke();
-    names.forEach((name, i) => {
-      const angle = -Math.PI / 2 + (i * TAU) / 3;
-      const x = lx + R * Math.cos(angle), y = ly + R * Math.sin(angle);
-      const here = Math.floor(pulse * 3) === i;
+    // ---- the child, who picks up the remote once there is something to point it at
+    const tookIt = clamp01((clock - (WAIT + EXTRAS.length * STRIP)) / 0.6);
+    child(ctx, w * 0.2, floor, tall, {
+      left: [-0.22, 0.14],
+      right: [0.2 + tookIt * 0.12, 0.12 - tookIt * 0.3],
+    });
+    if (tookIt > 0) {
+      ctx.save();
+      ctx.globalAlpha = tookIt;
+      const [rx, ry] = [w * 0.2 + tall * 0.32, floor - tall * 0.82];
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.8;
       ctx.fillStyle = PAGE;
       ctx.beginPath();
-      ctx.arc(x, y, 5, 0, TAU);
+      ctx.roundRect(rx - tall * 0.06, ry - tall * 0.1, tall * 0.12, tall * 0.2, tall * 0.02);
       ctx.fill();
-      ctx.fillStyle = here ? (lost ? ORANGE : INK) : MUTED;
+      ctx.stroke();
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, TAU);
+      ctx.moveTo(rx, ry - tall * 0.1);
+      ctx.lineTo(rx + tall * 0.04, ry - tall * 0.22);
+      ctx.stroke();
+      // the button being held down, and what it says to the robot
+      const pressed = Math.sin(rest * 2.1) > 0 ? 0 : 1;
+      ctx.fillStyle = ORANGE;
+      ctx.beginPath();
+      ctx.arc(rx - tall * 0.025 + pressed * tall * 0.05, ry - tall * 0.03, tall * 0.018, 0, TAU);
       ctx.fill();
-      caption(ctx, name, x + Math.cos(angle) * 30, y + Math.sin(angle) * 18, 14, here ? INK : MUTED);
-    });
-    const pa = -Math.PI / 2 + pulse * TAU;
-    ctx.fillStyle = lost ? ORANGE : INK;
-    ctx.beginPath();
-    ctx.arc(lx + R * Math.cos(pa), ly + R * Math.sin(pa), 3, 0, TAU);
-    ctx.fill();
-
-    // How far off the line, over the last few seconds.
-    const bx = w * 0.64, bw = w * 0.32, by = (h - 30) * 0.66, bh = (h - 30) * 0.24;
-    ctx.strokeStyle = FAINT;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(bx, by + bh / 2); ctx.lineTo(bx + bw, by + bh / 2);
-    ctx.stroke();
-    ctx.strokeStyle = ORANGE;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    history.forEach((value, i) => {
-      const x = bx + (i / 359) * bw, y = by + bh / 2 - Math.max(-1, Math.min(1, value / 40)) * (bh / 2);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    caption(ctx, "distancia a la línea", bx + bw / 2, by + bh + 14, 13);
-    caption(ctx, "la retroalimentación se ve mientras se juega", w / 2, h - 12, 15);
-  };
-}
-
-/* ---- 4. many paths, many styles: the planner and the tinkerer make the same heart ---- */
-
-function paths(): Frame {
-  const SHAPE = [".OO.OO.", "OOOOOOO", "OOOOOOO", ".OOOOO.", "..OOO..", "...O..."];
-  const COLS = 7, ROWS = SHAPE.length;
-  const inside = (c: number, r: number) => SHAPE[r]![c] === "O";
-  const TARGET: [number, number][] = [];
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (inside(c, r)) TARGET.push([c, r]);
-
-  let plan = 0;
-  let tinker = new Map<string, number>();
-  let clock = 0, nextPlan = 0, nextTinker = 0, doneAt = -1;
-
-  const reset = () => {
-    plan = 0;
-    tinker = new Map();
-    clock = 0;
-    nextPlan = 0.5;
-    nextTinker = 0.5;
-    doneAt = -1;
-  };
-  reset();
-  const cellOf = (k: string) => k.split(",").map(Number) as [number, number];
-  const tinkerDone = () =>
-    TARGET.every(([c, r]) => tinker.has(`${c},${r}`)) && [...tinker.keys()].every((k) => inside(...cellOf(k)));
-
-  return (ctx, w, h, dt) => {
-    clock += dt;
-    if (clock > nextPlan && plan < TARGET.length) {
-      plan++;
-      nextPlan = clock + 0.2;
-    }
-    if (clock > nextTinker && !tinkerDone()) {
-      nextTinker = clock + 0.14;
-      const wrong = [...tinker.keys()].filter((k) => !inside(...cellOf(k)));
-      if (wrong.length && Math.random() < 0.3) tinker.delete(wrong[Math.floor(Math.random() * wrong.length)]!);
-      else {
-        const free: [number, number][] = [];
-        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!tinker.has(`${c},${r}`)) free.push([c, r]);
-        const good = free.filter(([c, r]) => inside(c, r));
-        const pool = good.length && Math.random() < 0.7 ? good : free;
-        if (pool.length) {
-          const [c, r] = pool[Math.floor(Math.random() * pool.length)]!;
-          tinker.set(`${c},${r}`, clock);
+      if (playing) {
+        ctx.strokeStyle = ORANGE;
+        ctx.lineWidth = 1.6;
+        for (let k = 1; k <= 3; k++) {
+          const wide = (rest * 2.2 + k * 0.5) % 1.5;
+          ctx.globalAlpha = tookIt * Math.max(0, 1 - wide / 1.5) * 0.9;
+          ctx.beginPath();
+          ctx.arc(rx + tall * 0.04, ry - tall * 0.22, tall * (0.05 + wide * 0.14), -1.2, -0.1);
+          ctx.stroke();
         }
       }
+      ctx.restore();
     }
-    if (doneAt < 0 && plan === TARGET.length && tinkerDone()) doneAt = clock;
-    if (doneAt >= 0 && clock > doneAt + 2.8) reset();
-
-    const gap = 30;
-    const pw = (w - gap) / 2;
-    const cs = Math.min((pw - 30) / COLS, (h - 110) / ROWS);
-    const panel = (x0: number, title: string, cells: (c: number, r: number) => "on" | "wrong" | "fresh" | null, planned: boolean) => {
-      const gx = x0 + (pw - cs * COLS) / 2, gy = 36;
-      caption(ctx, title, x0 + pw / 2, 14, 16, INK);
-      for (let r = 0; r < ROWS; r++)
-        for (let c = 0; c < COLS; c++) {
-          const x = gx + c * cs, y = gy + r * cs;
-          const state = cells(c, r);
-          if (planned && inside(c, r) && !state) {
-            ctx.setLineDash([3, 3]);
-            ctx.strokeStyle = MUTED;
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x + 3, y + 3, cs - 6, cs - 6);
-            ctx.setLineDash([]);
-          } else if (!state) {
-            ctx.fillStyle = "#f4f5f6";
-            ctx.fillRect(x + 2, y + 2, cs - 4, cs - 4);
-          }
-          if (state === "on" || state === "fresh") {
-            ctx.fillStyle = state === "fresh" ? ORANGE : INK;
-            ctx.fillRect(x + 2, y + 2, cs - 4, cs - 4);
-          } else if (state === "wrong") {
-            ctx.strokeStyle = ORANGE;
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x + 3, y + 3, cs - 6, cs - 6);
-          }
-        }
-    };
-    panel(0, "planificar", (c, r) => {
-      const i = TARGET.findIndex(([tc, tr]) => tc === c && tr === r);
-      return i >= 0 && i < plan ? (i === plan - 1 && plan < TARGET.length ? "fresh" : "on") : null;
-    }, true);
-    panel(pw + gap, "bricolaje", (c, r) => {
-      const at = tinker.get(`${c},${r}`);
-      if (at === undefined) return null;
-      if (!inside(c, r)) return "wrong";
-      return clock - at < 0.35 ? "fresh" : "on";
-    }, false);
-    ctx.strokeStyle = FAINT;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pw + gap / 2, 30);
-    ctx.lineTo(pw + gap / 2, h - 50);
-    ctx.stroke();
-    caption(ctx, doneAt >= 0 ? "dos estilos, el mismo resultado" : "de arriba abajo · probando y quitando", w / 2, h - 18, 15, doneAt >= 0 ? ORANGE : MUTED);
+    caption(
+      ctx,
+      stripped < 1 ? "cada cosa que se quita es una función útil" : "ahora es de quien juega",
+      w / 2,
+      h - 14,
+      14,
+      stripped < 1 ? MUTED : ORANGE,
+    );
   };
 }
 
-/* ---- 5. as simple as possible, and maybe simpler: a shape losing points and keeping itself ---- */
+/* ---- 6. choose black boxes carefully: the same curve, from two different floors ---- */
 
-function simple(): Frame {
-  const N = 240;
-  const points: [number, number][] = Array.from({ length: N }, (_, i) => {
-    const a = (i / N) * TAU;
-    const r = 1 + 0.28 * Math.sin(5 * a) + 0.06 * Math.sin(17 * a) + 0.03 * Math.cos(29 * a);
-    return [r * Math.cos(a - Math.PI / 2), r * Math.sin(a - Math.PI / 2)];
-  });
-  // The order in which points go: always the one whose triangle with its neighbours is smallest.
-  const rank = new Map<number, number>();
+/**
+ * A dragon curve written twice, side by side, while both are being typed.
+ *
+ * On the left it is written in Logo, where the turtle, `repeat` and recursion are already there:
+ * nine lines, and the curve draws itself. On the right the same curve in C++, where the floor is
+ * a framebuffer — so before any geometry there is a canvas, a line routine, a state stack and a
+ * matrix, and the interesting part has not been reached by the time the left-hand one is done.
+ *
+ * Neither is the better language. What differs is where the black boxes were put, and everything
+ * below that line is a thing the person drawing a dragon curve never has to think about.
+ */
+function blackboxes(): Frame {
+  const LOGO = [
+    "to dragon :size :level :sign",
+    "  if :level = 0 [fd :size stop]",
+    "  rt 45 * :sign",
+    "  dragon :size / 1.414 :level - 1 1",
+    "  lt 90 * :sign",
+    "  dragon :size / 1.414 :level - 1 -1",
+    "  rt 45 * :sign",
+    "end",
+    "",
+    "cs pu bk 60 pd",
+    "dragon 300 12 1",
+  ];
+  const CPP = [
+    "#include <cmath>",
+    "#include <cstdint>",
+    "#include <vector>",
+    "#include <algorithm>",
+    "",
+    "namespace turtle {",
+    "",
+    "struct Vec2 { double x, y; };",
+    "",
+    "class Canvas {",
+    " public:",
+    "  Canvas(int w, int h)",
+    "      : w_(w), h_(h), px_(size_t(w) * h, 0xffffffffu) {}",
+    "",
+    "  void line(Vec2 a, Vec2 b, uint32_t rgba) {",
+    "    double dx = std::abs(b.x - a.x);",
+    "    double dy = -std::abs(b.y - a.y);",
+    "    double sx = a.x < b.x ? 1.0 : -1.0;",
+    "    double sy = a.y < b.y ? 1.0 : -1.0;",
+    "    double err = dx + dy;",
+    "    for (;;) {",
+    "      plot(int(a.x), int(a.y), rgba);",
+    "      if (std::abs(a.x - b.x) < 0.5 &&",
+    "          std::abs(a.y - b.y) < 0.5) break;",
+    "      double e2 = 2 * err;",
+    "      if (e2 >= dy) { err += dy; a.x += sx; }",
+    "      if (e2 <= dx) { err += dx; a.y += sy; }",
+    "    }",
+    "  }",
+    "",
+    " private:",
+    "  void plot(int x, int y, uint32_t rgba) {",
+    "    if (x < 0 || y < 0 || x >= w_ || y >= h_) return;",
+    "    px_[size_t(y) * w_ + x] = rgba;",
+    "  }",
+    "  int w_, h_;",
+    "  std::vector<uint32_t> px_;",
+    "};",
+    "",
+    "struct State {",
+    "  Vec2 pos{0.0, 0.0};",
+    "  double heading = -M_PI / 2;",
+    "  bool pen = true;",
+    "  uint32_t colour = 0xff1b1d22u;",
+    "};",
+    "",
+    "class Turtle {",
+    " public:",
+    "  explicit Turtle(Canvas& c) : canvas_(c) {}",
+    "",
+    "  void forward(double d) {",
+    "    Vec2 to{s_.pos.x + std::cos(s_.heading) * d,",
+    "            s_.pos.y + std::sin(s_.heading) * d};",
+    "    if (s_.pen) canvas_.line(s_.pos, to, s_.colour);",
+    "    s_.pos = to;",
+    "  }",
+    "  void right(double deg) { s_.heading += deg * M_PI / 180.0; }",
+    "  void left(double deg)  { s_.heading -= deg * M_PI / 180.0; }",
+    "  void push() { stack_.push_back(s_); }",
+    "  void pop()  { s_ = stack_.back(); stack_.pop_back(); }",
+    "",
+    " private:",
+    "  Canvas& canvas_;",
+    "  State s_;",
+    "  std::vector<State> stack_;",
+    "};",
+    "",
+    "void dragon(Turtle& t, double size, int level, int sign) {",
+    "  if (level == 0) { t.forward(size); return; }",
+    "  t.right(45.0 * sign);",
+    "  dragon(t, size / std::sqrt(2.0), level - 1, +1);",
+    "  t.left(90.0 * sign);",
+    "  dragon(t, size / std::sqrt(2.0), level - 1, -1);",
+    "  t.right(45.0 * sign);",
+    "}",
+    "",
+    "}  // namespace turtle",
+    "",
+    "int main() {",
+    "  turtle::Canvas canvas(1600, 1200);",
+    "  turtle::Turtle t(canvas);",
+    "  turtle::dragon(t, 300.0, 12, 1);",
+    "  return write_png(\"dragon.png\", canvas);",
+    "}",
+  ];
+
+  // The curve itself: at each step the turtle turns one way or the other, and which way is
+  // decided by the folding — the same rule the recursion above works out for itself.
+  const TURNS = 1 << 11;
+  const PATH: [number, number][] = [[0, 0]];
   {
-    const left = points.map((_, i) => i);
-    const area = (k: number) => {
-      const a = points[left[(k - 1 + left.length) % left.length]!]!, b = points[left[k]!]!, c = points[left[(k + 1) % left.length]!]!;
-      return Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]));
-    };
-    let order = 0;
-    while (left.length > 3) {
-      let best = 0, bestArea = Infinity;
-      for (let k = 0; k < left.length; k++) {
-        const value = area(k);
-        if (value < bestArea) { bestArea = value; best = k; }
-      }
-      rank.set(left[best]!, order++);
-      left.splice(best, 1);
+    let [x, y, heading] = [0, 0, 0];
+    for (let n = 1; n <= TURNS; n++) {
+      x += Math.cos(heading);
+      y += Math.sin(heading);
+      PATH.push([x, y]);
+      heading += (((n & -n) << 1) & n) !== 0 ? Math.PI / 2 : -Math.PI / 2;
     }
   }
+  const xs = PATH.map((p) => p[0]);
+  const ys = PATH.map((p) => p[1]);
+  const BOX = { left: Math.min(...xs), right: Math.max(...xs), low: Math.min(...ys), high: Math.max(...ys) };
 
-  const DOWN = 6.5, HOLD = 2.2, BACK = 1.2;
+  const TYPE = 5.5, DRAW = 7, HOLD = 2.5;
+  const period = TYPE + DRAW + HOLD;
   let clock = 0;
 
   return (ctx, w, h, dt) => {
-    clock += dt;
-    const period = DOWN + HOLD + BACK + 0.8;
-    const t = clock % period;
-    // Counted down on a logarithmic scale — 240, 120, 60, … — so each halving takes as long.
-    const u = t < DOWN ? ease(t / DOWN) : t < DOWN + HOLD ? 1 : 1 - ease((t - DOWN - HOLD) / BACK);
-    const keep = Math.max(3, Math.round(Math.exp(lerp(Math.log(N), Math.log(5), u))));
-    const gone = N - keep;
-    const kept = points.filter((_, i) => (rank.get(i) ?? Infinity) >= gone);
+    clock = (clock + dt) % period;
+    ctx.fillStyle = PAGE;
+    ctx.fillRect(0, 0, w, h);
+    const half = w / 2 - 10;
 
-    const s = Math.min(w, h - 70) * 0.38;
-    const cx = w / 2, cy = (h - 50) / 2 + 6;
-    const draw = (list: [number, number][]) => {
+    // ---- the Logo on the left, and the curve it draws
+    const typed = clamp01(clock / TYPE);
+    const size = Math.max(11, Math.min(15, h * 0.026));
+    ctx.font = `${size}px ${MONO}`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = INK;
+    const letters = Math.round(typed * LOGO.join("\n").length);
+    let spent = 0;
+    LOGO.forEach((line, i) => {
+      const show = Math.max(0, Math.min(line.length, letters - spent));
+      spent += line.length + 1;
+      if (show > 0) ctx.fillText(line.slice(0, show), 4, 20 + i * size * 1.45);
+    });
+    caption(ctx, "Logo", 4 + half * 0.5, h - 16, 14, ORANGE);
+
+    const top = 24 + LOGO.length * size * 1.45;
+    const room = Math.min(half, h - top - 34);
+    if (clock > TYPE) {
+      const along = clamp01((clock - TYPE) / DRAW);
+      const reach = Math.max(BOX.right - BOX.left, BOX.high - BOX.low);
+      const scale = (room * 0.94) / reach;
+      const ox = 4 + (half - (BOX.right - BOX.left) * scale) / 2 - BOX.left * scale;
+      const oy = top + (room - (BOX.high - BOX.low) * scale) / 2 - BOX.low * scale;
+      const upto = Math.floor(along * (PATH.length - 1));
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.1;
+      ctx.lineJoin = "round";
       ctx.beginPath();
-      list.forEach(([x, y], i) => (i ? ctx.lineTo(cx + x * s, cy + y * s) : ctx.moveTo(cx + x * s, cy + y * s)));
-      ctx.closePath();
-    };
-    draw(points);
-    ctx.strokeStyle = FAINT;
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    draw(kept);
-    ctx.fillStyle = ORANGE_SOFT;
-    ctx.fill();
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-    if (keep <= 60) {
-      ctx.fillStyle = ORANGE;
-      for (const [x, y] of kept) {
+      ctx.moveTo(ox + PATH[0]![0] * scale, oy + PATH[0]![1] * scale);
+      for (let k = 1; k <= upto; k++) ctx.lineTo(ox + PATH[k]![0] * scale, oy + PATH[k]![1] * scale);
+      ctx.stroke();
+      if (upto < PATH.length - 1) {
+        ctx.fillStyle = ORANGE;
         ctx.beginPath();
-        ctx.arc(cx + x * s, cy + y * s, 3.2, 0, TAU);
+        ctx.arc(ox + PATH[upto]![0] * scale, oy + PATH[upto]![1] * scale, 3.4, 0, TAU);
         ctx.fill();
       }
     }
-    caption(ctx, `${keep} puntos`, w / 2, h - 38, 18, INK);
-    caption(ctx, keep <= 6 ? "…y quizá aún más simple" : "lo más simple posible", w / 2, h - 14, 15, keep <= 6 ? ORANGE : MUTED);
-  };
-}
 
-/* ---- 6. choose black boxes carefully: where the primitives are is a choice ---- */
-
-function blackboxes(): Frame {
-  const LEVELS = 4;
-  const SAYS = [
-    "todo escondido: no hay nada que explorar",
-    "pocas piezas, y muy grandes",
-    "piezas con las que se puede pensar",
-    "todo a la vista: demasiadas piezas",
-  ];
-  const ORDER = [0, 1, 2, 3, 2];
-  const STEP = 2;
-  let clock = 0;
-  let shown = 0;
-
-  return (ctx, w, h, dt) => {
-    clock += dt;
-    const cut = ORDER[Math.floor(clock / STEP) % ORDER.length]!;
-    shown += (cut - shown) * Math.min(1, dt * 4);
-
-    const top = 30, bottom = h - 70;
-    const rowY = (k: number) => top + (k / (LEVELS - 1)) * (bottom - top - 24);
-    const span = w * 0.92;
-    const node = (k: number, i: number) => ({ x: (w - span) / 2 + ((i + 0.5) / 3 ** k) * span, y: rowY(k) });
-    const size = (k: number) => Math.min(44 - k * 6, span / 3 ** k - 4);
-
-    for (let k = 0; k < LEVELS; k++) {
-      const visible = clamp01(shown - k + 1);
-      if (visible <= 0) continue;
-      const count = 3 ** k;
-      for (let i = 0; i < count; i++) {
-        const { x, y } = node(k, i);
-        const s = size(k);
-        ctx.globalAlpha = visible;
-        if (k > 0) {
-          const parent = node(k - 1, Math.floor(i / 3));
-          ctx.strokeStyle = FAINT;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(parent.x, parent.y + size(k - 1) / 2);
-          ctx.lineTo(x, y - s / 2);
-          ctx.stroke();
-        }
-        const closed = clamp01(1 - Math.abs(shown - k));
-        ctx.fillStyle = `rgba(27, 29, 34, ${closed})`;
-        ctx.fillRect(x - s / 2, y - s / 2, s, s);
-        ctx.strokeStyle = INK;
-        ctx.lineWidth = 1.2;
-        ctx.strokeRect(x - s / 2, y - s / 2, s, s);
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // The cut: what sits on it is taken as given.
-    const y = rowY(shown);
-    ctx.strokeStyle = ORANGE;
-    ctx.setLineDash([6, 5]);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(4, y);
-    ctx.lineTo(w - 4, y);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.font = `13px ${SERIF}`;
-    ctx.fillStyle = ORANGE;
+    // ---- the C++ on the right, still being typed, and scrolling by
+    const small = Math.max(8.5, size * 0.72);
+    const step = small * 1.35;
+    const fits = Math.floor((h - 40) / step);
+    const wanted = Math.round(clamp01(clock / (period * 0.94)) * CPP.length);
+    const from = Math.max(0, wanted - fits);
+    ctx.font = `${small}px ${MONO}`;
     ctx.textAlign = "left";
-    ctx.textBaseline = "bottom";
-    ctx.fillText("primitivas", 6, y - size(Math.round(shown)) / 2 - 4);
-
-    caption(ctx, `${3 ** cut} ${cut === 0 ? "caja negra" : "cajas negras"}`, w / 2, h - 38, 17, INK);
-    caption(ctx, SAYS[cut]!, w / 2, h - 14, 15, cut === 2 ? ORANGE : MUTED);
+    ctx.fillStyle = MUTED;
+    for (let i = from; i < wanted; i++) {
+      const line = CPP[i]!;
+      const y = 20 + (i - from) * step;
+      // The line being typed comes in letter by letter, like the Logo does.
+      ctx.fillText(line, w / 2 + 14, y);
+    }
+    ctx.fillStyle = FAINT;
+    ctx.fillRect(w / 2 + 6, 6, 1, h - 40);
+    caption(ctx, "C++, desde el framebuffer", w / 2 + 14 + half * 0.5, h - 16, 14);
   };
 }
 
@@ -868,69 +1503,186 @@ function yourself(): Frame {
   };
 }
 
-/* ---- 10. iterate: a polygon getting closer to the circle each time round ---- */
+/* ---- 10. iterate: the numbers sandbox, four times over ---- */
 
+/**
+ * Four goes at the same sandbox, the last of which is the one in this talk.
+ *
+ * Nothing here was designed and then built: a box you typed numbers into became a grid, the grid
+ * grew sets with colours of their own, and only then did the sliders and the other ways of laying
+ * the numbers out appear. Each screen is the previous one with the thing that was missing.
+ */
 function iterate(): Frame {
-  const SIDES = [3, 4, 5, 6, 8, 10, 12, 16, 24, 48];
-  const EACH = 1.5, HOLD = 2.4;
-  const error = (n: number) => 1 - (n * Math.sin(TAU / n)) / (2 * Math.PI);
+  const SHOW = 2.9, FADE = 0.5;
+  const SAYS = [
+    "intento 1 · una lista de números",
+    "intento 2 · una cuadrícula",
+    "intento 3 · conjuntos con su color",
+    "intento 4 · la que está en esta charla",
+  ];
   let clock = 0;
 
-  return (ctx, w, h, dt) => {
-    clock += dt;
-    if (clock > SIDES.length * EACH + HOLD) clock = 0;
-    const i = Math.min(SIDES.length - 1, Math.floor(clock / EACH));
-    const n = SIDES[i]!;
-    const within = (clock - i * EACH) / EACH;
-
-    const plotW = w > h ? w * 0.36 : 0;
-    const R = Math.min((w - plotW) * 0.42, (h - 70) * 0.46);
-    const cx = (w - plotW) / 2, cy = (h - 44) / 2;
-    ctx.fillStyle = ORANGE_SOFT;
-    ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, TAU);
-    ctx.fill();
-    ctx.beginPath();
-    for (let k = 0; k <= n; k++) {
-      const a = (k / n) * TAU - Math.PI / 2;
-      if (k === 0) ctx.moveTo(cx + R * Math.cos(a), cy + R * Math.sin(a));
-      else ctx.lineTo(cx + R * Math.cos(a), cy + R * Math.sin(a));
-    }
+  /** The window every version is drawn inside. */
+  const frame = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) => {
     ctx.fillStyle = PAGE;
-    ctx.fill();
-    ctx.strokeStyle = INK;
+    ctx.strokeStyle = FAINT;
     ctx.lineWidth = 1.6;
-    ctx.stroke();
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = MUTED;
-    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(cx, cy, R, 0, TAU);
+    ctx.roundRect(x, y, w, h, 8);
+    ctx.fill();
     ctx.stroke();
-    ctx.setLineDash([]);
-
-    if (plotW) {
-      // Each try's error, falling.
-      const px = w - plotW + 10, pw = plotW - 20, py = 30, ph = h - 120;
-      ctx.strokeStyle = FAINT;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(px, py); ctx.lineTo(px, py + ph); ctx.lineTo(px + pw, py + ph);
-      ctx.stroke();
-      const top = error(3);
-      for (let k = 0; k <= i; k++) {
-        const x = px + ((k + 0.5) / SIDES.length) * pw, y = py + ph - (error(SIDES[k]!) / top) * ph;
-        ctx.fillStyle = k === i ? ORANGE : INK;
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, TAU);
-        ctx.fill();
+  };
+  /** A row of number cells, some of them picked out. */
+  const grid = (
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number, wide: number, cols: number, rows: number,
+    lit: (n: number) => string | null,
+  ) => {
+    const cell = wide / cols;
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const n = j * cols + i;
+        const paint = lit(n);
+        if (paint) {
+          ctx.fillStyle = paint;
+          ctx.fillRect(x + i * cell + 1, y + j * cell + 1, cell - 2, cell - 2);
+        } else {
+          ctx.strokeStyle = FAINT;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + i * cell + 1, y + j * cell + 1, cell - 2, cell - 2);
+        }
       }
-      caption(ctx, "error en cada intento", px + pw / 2, py + ph + 16, 13);
     }
+  };
+  const prime = (n: number) => {
+    if (n < 2) return false;
+    for (let k = 2; k * k <= n; k++) if (n % k === 0) return false;
+    return true;
+  };
 
-    const stage = Math.min(2, Math.floor(within * 3));
-    sequence(ctx, arrows(["construir", "probar", "ajustar"], clock > SIDES.length * EACH ? -1 : stage), (w - plotW) / 2, h - 40, 16);
-    caption(ctx, `intento ${i + 1}: ${n} lados · error ${(error(n) * 100).toFixed(1)} %`, (w - plotW) / 2, h - 14, 15, INK);
+  return (ctx, w, h, dt) => {
+    clock = (clock + dt) % (SAYS.length * SHOW);
+    ctx.fillStyle = PAGE;
+    ctx.fillRect(0, 0, w, h);
+    const round = Math.floor(clock / SHOW);
+    const into = clock - round * SHOW;
+    const show = Math.min(1, into / FADE) * (1 - clamp01((into - (SHOW - FADE)) / FADE));
+
+    const boxW = Math.min(w * 0.86, h * 1.15);
+    const boxH = boxW * 0.66;
+    const x = (w - boxW) / 2;
+    const y = h * 0.16;
+    ctx.save();
+    ctx.globalAlpha = show;
+    frame(ctx, x, y, boxW, boxH);
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxW, boxH, 8);
+    ctx.clip();
+
+    if (round === 0) {
+      // A box to type in, and everything it knows printed underneath it.
+      ctx.strokeStyle = FAINT;
+      ctx.lineWidth = 1.4;
+      ctx.strokeRect(x + 16, y + 16, boxW - 32, 26);
+      ctx.fillStyle = MUTED;
+      ctx.font = `13px ${MONO}`;
+      ctx.fillText("primes(1000)", x + 24, y + 34);
+      ctx.fillStyle = "rgba(27,29,34,0.5)";
+      ctx.font = `11px ${MONO}`;
+      for (let row = 0; row < 12; row++) {
+        const nums: number[] = [];
+        for (let k = row * 13 + 2; nums.length < 13; k++) if (prime(k)) nums.push(k);
+        ctx.fillText(nums.join("  "), x + 18, y + 64 + row * 15);
+      }
+    } else if (round === 1) {
+      // The same numbers, put where they belong.
+      grid(ctx, x + 18, y + 18, boxW - 36, 20, 11, (n) => (prime(n) ? ORANGE : null));
+    } else if (round === 2) {
+      // Sets of their own, each with a colour, and one number left loose on a slider.
+      const side = boxW * 0.3;
+      ctx.fillStyle = "rgba(27,29,34,0.03)";
+      ctx.fillRect(x, y, side, boxH);
+      ctx.strokeStyle = FAINT;
+      ctx.beginPath();
+      ctx.moveTo(x + side, y);
+      ctx.lineTo(x + side, y + boxH);
+      ctx.stroke();
+      ctx.font = `12px ${MONO}`;
+      [["P", ORANGE], ["k = 2", MUTED]].forEach(([text, paint], i) => {
+        ctx.fillStyle = paint as string;
+        ctx.beginPath();
+        ctx.arc(x + 20, y + 26 + i * 34, 5, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = INK;
+        ctx.fillText(text as string, x + 34, y + 30 + i * 34);
+      });
+      ctx.strokeStyle = FAINT;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + 20, y + 100);
+      ctx.lineTo(x + side - 20, y + 100);
+      ctx.stroke();
+      ctx.fillStyle = ORANGE;
+      ctx.beginPath();
+      ctx.arc(x + 20 + (side - 40) * 0.35, y + 100, 6, 0, TAU);
+      ctx.fill();
+      grid(ctx, x + side + 14, y + 18, boxW - side - 32, 14, 10, (n) => (prime(n) ? ORANGE : null));
+    } else {
+      // What it is now: sets with their colours, the ways of laying the numbers out, the sliders.
+      const side = boxW * 0.3;
+      ctx.fillStyle = "rgba(27,29,34,0.03)";
+      ctx.fillRect(x, y, side, boxH);
+      ctx.strokeStyle = FAINT;
+      ctx.beginPath();
+      ctx.moveTo(x + side, y);
+      ctx.lineTo(x + side, y + boxH);
+      ctx.stroke();
+      ctx.font = `12px ${MONO}`;
+      const lines: [string, string][] = [["P", ORANGE], ["k = 2", MUTED], ["P ∩ (P − k)", "#2f4fd8"]];
+      lines.forEach(([text, paint], i) => {
+        ctx.fillStyle = paint;
+        ctx.beginPath();
+        ctx.arc(x + 20, y + 26 + i * 30, 5, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = INK;
+        ctx.fillText(text, x + 34, y + 30 + i * 30);
+      });
+      ctx.strokeStyle = FAINT;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x + 20, y + 132);
+      ctx.lineTo(x + side - 20, y + 132);
+      ctx.stroke();
+      ctx.fillStyle = ORANGE;
+      ctx.beginPath();
+      ctx.arc(x + 20 + (side - 40) * 0.45, y + 132, 6, 0, TAU);
+      ctx.fill();
+      ctx.font = `12px ${SERIF}`;
+      ["Grid", "Spiral", "Polar", "Count"].forEach((tab, i) => {
+        ctx.fillStyle = i === 0 ? INK : MUTED;
+        ctx.fillText(tab, x + side + 16 + i * 52, y + 24);
+        if (i === 0) {
+          ctx.fillStyle = ORANGE;
+          ctx.fillRect(x + side + 14, y + 30, 30, 2);
+        }
+      });
+      const twin = (n: number) => prime(n) && (prime(n + 2) || prime(n - 2));
+      grid(ctx, x + side + 14, y + 40, boxW - side - 32, 14, 8, (n) =>
+        twin(n) ? "#2f4fd8" : prime(n) ? ORANGE : null,
+      );
+    }
+    ctx.restore();
+    caption(ctx, SAYS[round]!, w / 2, y + boxH + 34, 15, round === SAYS.length - 1 ? ORANGE : MUTED);
+    ctx.restore();
+
+    // How far along the four we are.
+    for (let k = 0; k < SAYS.length; k++) {
+      ctx.fillStyle = k === round ? ORANGE : FAINT;
+      ctx.beginPath();
+      ctx.arc(w / 2 + (k - (SAYS.length - 1) / 2) * 18, h - 26, 4, 0, TAU);
+      ctx.fill();
+    }
   };
 }
 

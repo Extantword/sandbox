@@ -24,18 +24,15 @@ body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--sans);display:fle
 button,select,input,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 
-header{display:flex;align-items:center;gap:14px;padding:4px 20px 14px}
-header svg{flex:none}
-h1{font:400 30px/1.1 var(--serif);margin:0}
-header p{margin:.15em 0 0;color:var(--muted);font:17px/1.4 var(--serif);max-width:70ch}
 
-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:20px;padding:0 20px 8px}
+/* The page is the sandbox: the drawing takes what is left once the program has what it needs. */
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,24vw) minmax(0,1fr);gap:14px;padding:10px 14px}
 .program,.stage{min-height:0;display:flex;flex-direction:column;gap:10px}
 
 .bar{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .bar label{font:400 18px var(--serif)}
 select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:14px}
-textarea{flex:1;min-height:220px;resize:none;background:var(--panel);border:1px solid var(--line);border-radius:.6em;padding:14px;font:14px/1.6 var(--mono);tab-size:2;white-space:pre;overflow:auto}
+textarea{flex:1;min-height:120px;resize:none;background:var(--panel);border:1px solid var(--line);border-radius:.6em;padding:14px;font:14px/1.6 var(--mono);tab-size:2;white-space:pre;overflow:auto}
 .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .btn{border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);background:transparent;border-radius:999px;padding:7px 18px;cursor:pointer;font-size:15px;transition:border-color .2s,background .2s}
 .btn:hover:not(:disabled){border-color:var(--shell)}
@@ -51,14 +48,14 @@ textarea{flex:1;min-height:220px;resize:none;background:var(--panel);border:1px 
 
 details{border-top:1px solid var(--line);padding-top:8px;font-size:14px}
 summary{cursor:pointer;font:400 17px var(--serif)}
-.ref{max-height:32vh;overflow:auto;margin-top:8px;padding-right:6px}
+.ref{max-height:40vh;overflow:auto;margin-top:8px;padding-right:6px}
 .ref p{margin:0 0 10px;max-width:60ch}
 .ref dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;margin:0 0 12px}
 .ref dt{font-family:var(--mono);font-size:13px}
 .ref dd{margin:0;color:var(--muted)}
 .ref h3{font:400 16px var(--serif);margin:14px 0 4px}
 
-.paper{position:relative;flex:1;min-height:280px;border:1px solid var(--line);border-radius:.6em;box-shadow:0 2px 22px rgb(0 0 0 / 5%);overflow:hidden;background:var(--paper);touch-action:manipulation}
+.paper{position:relative;flex:1;min-height:280px;cursor:grab;touch-action:none;border:1px solid var(--line);border-radius:.6em;box-shadow:0 2px 22px rgb(0 0 0 / 5%);overflow:hidden;background:var(--paper)}
 .paper canvas{position:absolute;inset:0;width:100%;height:100%}
 .readout{position:absolute;left:10px;bottom:8px;display:flex;flex-wrap:wrap;gap:4px 14px;font:12.5px/1.4 var(--mono);color:var(--muted);background:color-mix(in srgb,var(--paper) 85%,transparent);padding:4px 8px;border-radius:6px;pointer-events:none}
 .readout b{font-weight:500;color:var(--ink)}
@@ -71,7 +68,7 @@ summary{cursor:pointer;font:400 17px var(--serif)}
 .cmdline input{flex:1;border:0;background:transparent;padding:10px 0;font:14px var(--mono);min-width:0}
 .cmdline input:focus{outline:none}
 .cmdline:focus-within{outline:2px solid var(--focus);outline-offset:1px}
-.log{height:120px;overflow:auto;font:13px/1.55 var(--mono);padding:2px 4px}
+.log{height:96px;overflow:auto;font:13px/1.55 var(--mono);padding:2px 4px}
 .log p{margin:0;white-space:pre-wrap;word-break:break-word}
 .log .echo{color:var(--muted)}
 .log .err{color:var(--err)}
@@ -83,8 +80,6 @@ summary{cursor:pointer;font:400 17px var(--serif)}
   main{flex:none;grid-template-columns:1fr;padding:0 14px 16px}
   .program,.stage{min-height:auto}
   .readout{font-size:11.5px;gap:2px 10px}
-  header{padding:12px 14px 8px}
-  header p{font-size:14px}
   .stage{order:-1}
   .paper{flex:none;height:56vh}
   textarea{min-height:260px}
@@ -95,17 +90,6 @@ summary{cursor:pointer;font:400 17px var(--serif)}
 </style>
 </head>
 <body>
-<header>
-  <svg width="40" height="40" viewBox="-20 -20 40 40" aria-hidden="true">
-    <g fill="var(--skin)"><ellipse cx="-9" cy="-6" rx="3.6" ry="2.8"/><ellipse cx="9" cy="-6" rx="3.6" ry="2.8"/><ellipse cx="-8.5" cy="7" rx="3.6" ry="2.8"/><ellipse cx="8.5" cy="7" rx="3.6" ry="2.8"/><ellipse cx="0" cy="-13" rx="3.8" ry="4.6"/></g>
-    <ellipse cx="0" cy="0" rx="9" ry="11" fill="var(--shell)" stroke="var(--shell-edge)" stroke-width="1.4"/>
-    <circle r="2.6" fill="var(--ink)"/>
-  </svg>
-  <div>
-    <h1>Turtle</h1>
-    <p>Papert’s turtle geometry, in Logo. Teach the turtle new words with TO … END, then watch it draw.</p>
-  </div>
-</header>
 
 <main>
   <section class="program" aria-label="Program">
@@ -705,12 +689,12 @@ let typeLine=null;
 I.out=(s,cont)=>{if(typeLine&&typeLine===logEl.lastChild){typeLine.textContent+=s;if(!cont)typeLine=null;logEl.scrollTop=logEl.scrollHeight;return}const p=log(s,'out');typeLine=cont?p:null};
 
 /* renderer */
-const R={W:0,H:0,dpr:1,baseZ:1,userZoom:1,z:1,history:[],queue:[],cur:null,bg:null,running:false,
+const R={W:0,H:0,dpr:1,baseZ:1,userZoom:1,z:1,px:0,py:0,history:[],queue:[],cur:null,bg:null,running:false,
   sprite:{x:0,y:0,h:0,vis:true,pen:true,color:null,turned:0}};
 let C={};
 function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
 function readColors(){C={paper:css('--paper'),grid:css('--grid'),major:css('--grid-major'),axis:css('--axis'),ink:css('--ink'),shell:css('--shell'),edge:css('--shell-edge'),skin:css('--skin')}}
-const sx=x=>R.W/2+x*R.z, sy=y=>R.H/2-y*R.z;
+const sx=x=>R.W/2+R.px+x*R.z, sy=y=>R.H/2+R.py-y*R.z;
 
 function resize(){
   const r=paper.getBoundingClientRect();R.W=r.width;R.H=r.height;R.dpr=window.devicePixelRatio||1;
@@ -723,7 +707,9 @@ function drawGrid(){
   g.fillStyle=R.bg||C.paper;g.fillRect(0,0,R.W,R.H);
   if(R.bg)return;
   const step=10*R.z;if(step<4)return;
-  const x0=Math.ceil(-R.W/2/step),x1=Math.floor(R.W/2/step),y0=Math.ceil(-R.H/2/step),y1=Math.floor(R.H/2/step);
+  /* Which lines fall inside the paper, once the page has been dragged about. */
+  const x0=Math.ceil((-R.W/2-R.px)/step),x1=Math.floor((R.W/2-R.px)/step);
+  const y0=Math.ceil((R.py-R.H/2)/step),y1=Math.floor((R.py+R.H/2)/step);
   g.lineWidth=1;
   for(const pass of ['minor','major','axis']){
     g.strokeStyle=pass==='minor'?C.grid:pass==='major'?C.major:C.axis;g.beginPath();
@@ -904,9 +890,38 @@ sel.addEventListener('change',()=>{
   runEditor();
 });
 
-$('#zoomIn').addEventListener('click',()=>{R.userZoom=Math.min(6,R.userZoom*1.25);R.z=R.baseZ*R.userZoom;redrawAll()});
-$('#zoomOut').addEventListener('click',()=>{R.userZoom=Math.max(.15,R.userZoom/1.25);R.z=R.baseZ*R.userZoom;redrawAll()});
-$('#zoomReset').addEventListener('click',()=>{R.userZoom=1;R.z=R.baseZ;redrawAll()});
+/* Zooming about the middle of the paper, which is where the eye is when a button is pressed. */
+function setZoom(next,ax,ay){
+  const was=R.z;R.userZoom=Math.max(.15,Math.min(6,next));R.z=R.baseZ*R.userZoom;
+  /* Whatever was under that spot stays under it, so zooming does not throw the drawing off. */
+  const [mx,my]=[ax===undefined?R.W/2:ax,ay===undefined?R.H/2:ay];
+  R.px=mx-R.W/2-(mx-R.W/2-R.px)*(R.z/was);
+  R.py=my-R.H/2-(my-R.H/2-R.py)*(R.z/was);
+  redrawAll();
+}
+$('#zoomIn').addEventListener('click',()=>setZoom(R.userZoom*1.25));
+$('#zoomOut').addEventListener('click',()=>setZoom(R.userZoom/1.25));
+$('#zoomReset').addEventListener('click',()=>{R.userZoom=1;R.z=R.baseZ;R.px=0;R.py=0;redrawAll()});
+
+/* The paper is dragged about with the mouse, the way any other plane in a geometry program is. */
+let drag=null;
+paper.addEventListener('pointerdown',e=>{
+  if(e.target.closest('.zoom'))return;
+  drag={x:e.clientX,y:e.clientY,px:R.px,py:R.py};
+  paper.setPointerCapture(e.pointerId);paper.style.cursor='grabbing';
+});
+paper.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  R.px=drag.px+(e.clientX-drag.x);R.py=drag.py+(e.clientY-drag.y);redrawAll();
+});
+const letGo=e=>{if(!drag)return;drag=null;paper.style.cursor='';try{paper.releasePointerCapture(e.pointerId)}catch(err){}};
+paper.addEventListener('pointerup',letGo);
+paper.addEventListener('pointercancel',letGo);
+paper.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=paper.getBoundingClientRect();
+  setZoom(R.userZoom*Math.exp(-e.deltaY*0.0014),e.clientX-r.left,e.clientY-r.top);
+},{passive:false});
 
 new ResizeObserver(()=>resize()).observe(paper);
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>redrawAll());

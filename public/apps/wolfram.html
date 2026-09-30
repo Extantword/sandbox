@@ -20,11 +20,9 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);display:fle
 button,select,input{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 
-header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:4px 20px 14px}
-h1{font:400 30px/1.1 var(--serif);margin:0}
-header p{margin:0;color:var(--muted);font:17px/1.4 var(--serif);max-width:78ch}
 
-main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:20px;padding:0 20px 8px}
+/* The run of the automaton is what there is to look at, so it is given the rest of the page. */
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(270px,22vw) minmax(0,1fr);gap:14px;padding:10px 14px}
 .side{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px}
 .side h2{font:400 18px var(--serif);margin:0 0 8px}
 
@@ -71,15 +69,10 @@ main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,360px) 
   main{grid-template-columns:1fr;padding:0 14px 16px}
   .stage{order:-1;height:56vh}
   .side{overflow:visible}
-  header{padding:12px 14px 8px}
 }
 </style>
 </head>
 <body>
-<header>
-  <h1>Wolfram</h1>
-  <p>Elementary cellular automata. Each cell looks at itself and its two neighbours; for each of the eight cases, you decide what goes underneath.</p>
-</header>
 
 <main>
   <section class="side" aria-label="Controls">

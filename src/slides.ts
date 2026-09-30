@@ -3,8 +3,8 @@ import type { AnimationName } from "./animations.ts";
 /** Somewhere else to go, said in words. */
 export type Link = { href: string; text: string };
 
-/** A picture from `public/img`, with what it shows for whoever cannot see it. */
-export type Picture = { src: string; alt: string };
+/** A picture from `public/img`, with what it shows for whoever cannot see it, and its name. */
+export type Picture = { src: string; alt: string; caption?: string };
 
 /**
  * The kinds of page the talk is made of.
@@ -13,8 +13,9 @@ export type Picture = { src: string; alt: string };
  * - `collage`: pictures filling the page, to be talked over.
  * - `quote`: one sentence in the middle, and who said it.
  * - `list`: a title and its items, revealed one per → press.
- * - `principle`: one idea, said in a paragraph, beside an animation of it (`animations.ts`).
- * - `example`: a title, what it means, and the pictures that show it.
+ * - `principle`: one idea, said in a paragraph, beside an animation of it (`animations.ts`) — or,
+ *   with `embed`, beside the thing itself, running in the page.
+ * - `example`: a title, what it means, and the pictures that show it, each one named underneath.
  * - `gallery`: a title and pictures, one large and the others beside it.
  * - `app`: a sandbox, live, over the whole page: one of ours in `public/apps`, or a site of its own
  *   given by its full address, which also gets a way to open it in a tab of its own.
@@ -24,12 +25,16 @@ export type Slide =
   | { kind: "collage"; pictures: Picture[] }
   | { kind: "quote"; text: string; by: string }
   | { kind: "list"; title: string; items: string[]; source?: string; numbered?: boolean }
-  | { kind: "principle"; count?: string; name: string; says: string; animation: AnimationName; link?: Link }
-  | { kind: "example"; title: string; says: string; example: string; pictures: Picture[] }
+  | { kind: "principle"; count?: string; name: string; says: string; animation: AnimationName; embed?: string; link?: Link }
+  | { kind: "example"; title: string; says: string; pictures: Picture[] }
   | { kind: "gallery"; title: string; pictures: Picture[]; large: Picture }
   | { kind: "app"; src: string; title: string };
 
-const img = (name: string, alt: string): Picture => ({ src: `img/${name}.png`, alt });
+const img = (name: string, alt: string, caption?: string): Picture => ({
+  src: `img/${name}.png`,
+  alt,
+  caption,
+});
 
 export const TITLE = "Sandbox";
 
@@ -67,10 +72,9 @@ export const SLIDES: Slide[] = [
     kind: "example",
     title: "Open-ended search",
     says: "Los usuarios tienen un alto grado de libertad para interactuar creativamente, usualmente sin ningún objetivo predeterminado, o con el objetivo que el propio usuario se ponga.",
-    example: "Numbers sandbox",
     pictures: [
-      img("minecraft-otono", "Un paisaje de otoño construido en Minecraft"),
-      img("sims", "Personajes en una plaza en Los Sims"),
+      img("minecraft-otono", "Un paisaje de otoño construido en Minecraft", "Minecraft"),
+      img("sims", "Personajes en una plaza en Los Sims", "Los Sims 4"),
     ],
   },
   { kind: "app", src: "apps/turtle.html", title: "Turtle" },
@@ -79,15 +83,13 @@ export const SLIDES: Slide[] = [
     kind: "example",
     title: "Emergencia",
     says: "Surgen comportamientos o fenómenos interesantes de mecánicas relativamente simples. Muchos de estos comportamientos son cosas que los diseñadores del sandbox no habían pensado.",
-    example: "Turtle game, el juego de la vida de Conway, LEGO",
     pictures: [
-      img("redstone", "Un reloj digital construido con redstone en Minecraft"),
-      img("ti83", "Un juego de plataformas corriendo en una calculadora TI-83 Plus"),
+      img("redstone", "Un reloj digital construido con redstone en Minecraft", "calculadora en Minecraft"),
+      img("ti83", "Un juego de plataformas corriendo en una calculadora TI-83 Plus", "calculadora programable"),
     ],
   },
   { kind: "app", src: "apps/life.html", title: "Life" },
   { kind: "app", src: "apps/wolfram.html", title: "Wolfram" },
-  { kind: "app", src: "https://extantword.github.io/interactive-algebra/", title: "Algebra Sandbox" },
   {
     kind: "gallery",
     title: "Maravilla accidental",
@@ -183,8 +185,12 @@ export const SLIDES: Slide[] = [
     name: "Invent Things That You Would Want to Use Yourself",
     says: "Si quien diseña usa lo que construye, lo prueba todos los días y ve dónde falla. El primer usuario es uno mismo.",
     animation: "yourself",
+    // The principle is easier shown than drawn: this is the thing itself, made to be used daily.
+    embed: "https://extantword.github.io/diff-geo/",
     link: { href: "https://extantword.github.io/diff-geo/", text: "Un ejemplo: diff-geo, geometría diferencial interactiva" },
   },
+  // The other one built for its own use, which is easier shown right after the principle.
+  { kind: "app", src: "https://extantword.github.io/interactive-algebra/", title: "Algebra Sandbox" },
   {
     kind: "principle",
     count: "10 / 10",
