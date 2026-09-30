@@ -36,6 +36,11 @@ export const SLIDES: Slide[] = [
     picture: img("arenero", "Dos niños jugando con juguetes en un arenero"),
   },
   {
+    kind: "quote",
+    text: "Un sandbox es cualquier entorno acotado que ofrezca la libertad para explorar y construir.",
+    by: "Alexandra Lange",
+  },
+  {
     kind: "collage",
     pictures: [
       img("lego", "Manos armando piezas de LEGO"),
@@ -43,11 +48,6 @@ export const SLIDES: Slide[] = [
       img("geogebra", "La calculadora de GeoGebra, vacía"),
       img("minecraft-jardin", "Una construcción en Minecraft"),
     ],
-  },
-  {
-    kind: "quote",
-    text: "Un sandbox es cualquier entorno acotado que ofrezca la libertad para explorar y construir.",
-    by: "Alexandra Lange",
   },
   {
     kind: "list",
@@ -69,6 +69,8 @@ export const SLIDES: Slide[] = [
       img("sims", "Personajes en una plaza en Los Sims"),
     ],
   },
+  { kind: "app", src: "apps/turtle.html", title: "Turtle" },
+  { kind: "app", src: "apps/sieve.html", title: "Sieve" },
   {
     kind: "example",
     title: "Emergencia",
@@ -79,8 +81,7 @@ export const SLIDES: Slide[] = [
       img("ti83", "Un juego de plataformas corriendo en una calculadora TI-83 Plus"),
     ],
   },
-  { kind: "app", src: "apps/turtle.html", title: "Turtle" },
-  { kind: "app", src: "apps/sieve.html", title: "Sieve" },
+  { kind: "app", src: "apps/life.html", title: "Life" },
   {
     kind: "gallery",
     title: "Maravilla accidental",

@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Life</title>
+<style>
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Regular.woff2) format("woff2");font-weight:400;font-style:normal}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Italic.woff2) format("woff2");font-weight:400;font-style:italic}
+:root{
+  --bg:#FFFFFF; --panel:#FAFAFB; --paper:#FFFFFF; --grid:#F0F1F3;
+  --ink:#1B1D22; --muted:#9097A1; --line:#E3E5E9; --hi:#F27305; --err:#D91A14;
+  --serif:"KaTeX_Main","Latin Modern Roman","Iowan Old Style",Georgia,serif;
+  --sans:ui-sans-serif, system-ui, sans-serif;
+  --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+
+header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:4px 20px 14px}
+h1{font:400 30px/1.1 var(--serif);margin:0}
+header p{margin:0;color:var(--muted);font:17px/1.4 var(--serif);max-width:70ch}
+
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(290px,340px) 1fr;gap:20px;padding:0 20px 8px}
+.side{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px}
+.side h2{font:400 18px var(--serif);margin:0 0 6px}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);background:transparent;border-radius:999px;padding:6px 16px;cursor:pointer;font-size:14px;transition:border-color .2s,background .2s}
+.btn:hover{border-color:var(--hi)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff;min-width:6.5em}
+.btn.primary:hover{background:var(--hi);border-color:var(--hi)}
+.btn[aria-pressed="true"]{border-color:var(--hi);color:var(--hi)}
+
+.speed{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.speed input{flex:1;accent-color:var(--hi)}
+.speed output{min-width:6ch;font:13px var(--mono);color:var(--ink)}
+
+.readout{display:flex;gap:18px;font:13px var(--mono);color:var(--muted)}
+.readout b{font-weight:500;color:var(--ink)}
+
+.patterns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pattern{display:flex;flex-direction:column;align-items:flex-start;gap:0;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:.6em;padding:7px 10px;cursor:pointer;transition:border-color .2s}
+.pattern:hover{border-color:var(--hi)}
+.pattern[aria-pressed="true"]{border-color:var(--hi);background:color-mix(in srgb,var(--hi) 8%,var(--panel))}
+.pattern b{font:400 15px var(--serif)}
+.pattern span{font-size:12px;color:var(--muted);line-height:1.35}
+
+.rule{display:flex;gap:8px;align-items:center}
+.rule select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:14px}
+.rule input{width:8.5em;font:14px var(--mono);border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:var(--paper)}
+.rule input.bad{border-color:var(--err);color:var(--err)}
+.note{margin:6px 0 0;font-size:13px;color:var(--muted);max-width:52ch}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--muted);cursor:pointer}
+.chk input{accent-color:var(--hi)}
+
+.stage{position:relative;min-height:0;border:1px solid var(--line);border-radius:.6em;overflow:hidden;box-shadow:0 2px 22px rgb(0 0 0 / 5%);background:var(--paper)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.stage canvas.moving{cursor:grab}
+.stage canvas.grabbing{cursor:grabbing}
+.zoom{position:absolute;right:8px;top:8px;display:flex;gap:4px}
+.zoom button{height:32px;min-width:32px;border:1px solid var(--line);background:var(--panel);border-radius:6px;cursor:pointer;font-size:16px;line-height:1;padding:0 9px}
+.zoom button.wide{font-size:13px}
+.zoom button[aria-pressed="true"]{border-color:var(--hi);color:var(--hi)}
+.hint{position:absolute;left:10px;bottom:8px;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--paper) 85%,transparent);padding:3px 8px;border-radius:6px;pointer-events:none}
+
+@media (max-width:860px){
+  html,body{height:auto}
+  main{grid-template-columns:1fr;padding:0 14px 16px}
+  .stage{order:-1;height:58vh}
+  .side{overflow:visible}
+  header{padding:12px 14px 8px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Life</h1>
+  <p>Conway’s Game of Life. A cell with two or three live neighbours stays alive; an empty cell with exactly three comes alive. That is all.</p>
+</header>
+
+<main>
+  <section class="side" aria-label="Controls">
+    <div>
+      <div class="controls">
+        <button class="btn primary" id="play">Play</button>
+        <button class="btn" id="step" title="One generation (N)">Step</button>
+        <button class="btn" id="random" title="Scatter live cells over the view">Random</button>
+        <button class="btn" id="clear">Clear</button>
+      </div>
+    </div>
+    <label class="speed">Speed <input type="range" id="speed" min="1" max="12" value="7"><output id="speedOut"></output></label>
+    <div class="readout" aria-live="off"><span>generation <b id="gen">0</b></span><span>alive <b id="pop">0</b></span></div>
+    <label class="chk"><input type="checkbox" id="births" checked> Show births in orange</label>
+
+    <div>
+      <h2>Patterns</h2>
+      <div class="patterns" id="patterns"></div>
+      <p class="note">Pick one, then click on the grid to place it. R turns it; Esc puts it away.</p>
+    </div>
+
+    <div>
+      <h2>Rule</h2>
+      <div class="rule">
+        <select id="preset" aria-label="Rule preset"></select>
+        <input id="ruleText" spellcheck="false" aria-label="Rule, like B3/S23">
+      </div>
+      <p class="note">B is how many neighbours bring an empty cell to life, S how many keep a live one alive.</p>
+    </div>
+  </section>
+
+  <section class="stage" aria-label="Grid">
+    <canvas id="cv" role="img" aria-label="The grid of cells"></canvas>
+    <div class="zoom">
+      <button id="mode" class="wide" aria-pressed="false" title="Drag to move the view instead of drawing">Move</button>
+      <button id="zoomOut" aria-label="Zoom out">−</button>
+      <button id="zoomIn" aria-label="Zoom in">+</button>
+      <button id="fit" class="wide">Fit</button>
+    </div>
+    <div class="hint">draw with the mouse · right-drag to move · wheel to zoom · space plays</div>
+  </section>
+</main>
+
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const INK='#1B1D22',HI='#F27305',GRID='#F0F1F3',GRID_MAJOR='#E3E5E9';
+
+/* ---- the cells: a set of keys, so the plane has no edge ---- */
+const OFF=32768,SPAN=65536;
+const key=(x,y)=>(x+OFF)*SPAN+(y+OFF);
+const kx=k=>Math.floor(k/SPAN)-OFF, ky=k=>k%SPAN-OFF;
+let alive=new Set(), born=new Map(), gen=0;
+let B=new Set([3]), S=new Set([2,3]);
+
+function step(){
+  const counts=new Map();
+  for(const k of alive){
+    const x=kx(k),y=ky(k);
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
+      if(!dx&&!dy)continue;
+      const nx=x+dx,ny=y+dy;
+      if(nx<=-OFF||nx>=OFF-1||ny<=-OFF||ny>=OFF-1)continue;
+      const n=key(nx,ny);counts.set(n,(counts.get(n)||0)+1);
+    }
+  }
+  const next=new Set(),nb=new Map();
+  for(const [k,c] of counts){
+    const was=alive.has(k);
+    if(was?S.has(c):B.has(c)){next.add(k);nb.set(k,was?born.get(k):gen+1)}
+  }
+  alive=next;born=nb;gen++;
+}
+
+/* ---- the view ---- */
+const view={cx:0,cy:0,cs:22};
+let W=0,H=0,dpr=1;
+function resize(){
+  const r=cv.getBoundingClientRect();W=r.width;H=r.height;dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(W*dpr));cv.height=Math.max(1,Math.round(H*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);draw();
+}
+const toScreen=(x,y)=>[W/2+(x-view.cx)*view.cs,H/2+(y-view.cy)*view.cs];
+const toCell=(px,py)=>[Math.floor((px-W/2)/view.cs+view.cx),Math.floor((py-H/2)/view.cs+view.cy)];
+
+let stamp=null,hover=null,showBirths=true;
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const cs=view.cs;
+  const x0=Math.floor(view.cx-W/2/cs)-1,x1=Math.ceil(view.cx+W/2/cs)+1;
+  const y0=Math.floor(view.cy-H/2/cs)-1,y1=Math.ceil(view.cy+H/2/cs)+1;
+  if(cs>=7){
+    ctx.lineWidth=1;
+    for(const major of [false,true]){
+      ctx.strokeStyle=major?GRID_MAJOR:GRID;ctx.beginPath();
+      for(let x=x0;x<=x1;x++){if((x%10===0)!==major)continue;const px=Math.round(toScreen(x,0)[0])+.5;ctx.moveTo(px,0);ctx.lineTo(px,H)}
+      for(let y=y0;y<=y1;y++){if((y%10===0)!==major)continue;const py=Math.round(toScreen(0,y)[1])+.5;ctx.moveTo(0,py);ctx.lineTo(W,py)}
+      ctx.stroke();
+    }
+  }
+  const gap=cs>=7?1:0,size=Math.max(1,cs-gap);
+  for(const pass of [INK,HI]){
+    ctx.fillStyle=pass;
+    for(const k of alive){
+      const x=kx(k),y=ky(k);
+      if(x<x0||x>x1||y<y0||y>y1)continue;
+      const fresh=showBirths&&gen>0&&born.get(k)===gen;
+      if((pass===HI)!==fresh)continue;
+      const [px,py]=toScreen(x,y);
+      ctx.fillRect(px+gap,py+gap,size,size);
+    }
+  }
+  if(stamp&&hover){
+    ctx.fillStyle='rgba(242,115,5,0.45)';
+    for(const [dx,dy] of stamp.cells){const [px,py]=toScreen(hover[0]+dx,hover[1]+dy);ctx.fillRect(px+gap,py+gap,size,size)}
+  }
+  $('#gen').textContent=gen.toLocaleString('en-US');
+  $('#pop').textContent=alive.size.toLocaleString('en-US');
+}
+
+/* ---- patterns ---- */
+const PATTERNS=[
+  {name:'R-pentomino',says:'Five cells, busy for 1,103 generations',rows:['.OO','OO.','.O.']},
+  {name:'Glider',says:'Walks diagonally, forever',rows:['.O.','..O','OOO']},
+  {name:'Spaceship',says:'A lightweight one, sideways',rows:['.O..O','O....','O...O','OOOO.']},
+  {name:'Pulsar',says:'Period 3 oscillator',rows:['..OOO...OOO..','.............','O....O.O....O','O....O.O....O','O....O.O....O','..OOO...OOO..','.............','..OOO...OOO..','O....O.O....O','O....O.O....O','O....O.O....O','.............','..OOO...OOO..']},
+  {name:'Glider gun',says:'Gosper’s: a new glider every 30',rows:['........................O...........','......................O.O...........','............OO......OO............OO','...........O...O....OO............OO','OO........O.....O...OO..............','OO........O...O.OO....O.O...........','..........O.....O.......O...........','...........O...O....................','............OO......................']},
+  {name:'Acorn',says:'Seven cells, 5,206 generations',rows:['.O.....','...O...','OO..OOO']},
+  {name:'Diehard',says:'Vanishes after 130',rows:['......O.','OO......','.O...OOO']},
+  {name:'Pentadecathlon',says:'Period 15 oscillator',rows:['..O....O..','OO.OOOO.OO','..O....O..']},
+];
+function cellsOf(rows){
+  const out=[],h=rows.length,w=Math.max(...rows.map(r=>r.length));
+  rows.forEach((r,y)=>[...r].forEach((c,x)=>{if(c==='O')out.push([x-Math.floor(w/2),y-Math.floor(h/2)])}));
+  return out;
+}
+const patEl=$('#patterns');
+PATTERNS.forEach(p=>{
+  const b=document.createElement('button');b.type='button';b.className='pattern';b.setAttribute('aria-pressed','false');
+  b.innerHTML=`<b>${p.name}</b><span>${p.says}</span>`;
+  b.addEventListener('click',()=>{
+    if(stamp&&stamp.name===p.name){setStamp(null);return}
+    setStamp({name:p.name,cells:cellsOf(p.rows)});
+  });
+  p.button=b;patEl.append(b);
+});
+function setStamp(s){
+  stamp=s;
+  PATTERNS.forEach(p=>p.button.setAttribute('aria-pressed',String(!!s&&s.name===p.name)));
+  draw();
+}
+function place(cx,cy,cells){
+  for(const [dx,dy] of cells){const k=key(cx+dx,cy+dy);if(!alive.has(k)){alive.add(k);born.set(k,-1)}}
+}
+const rotate=cells=>cells.map(([x,y])=>[-y,x]);
+
+/* ---- rules ---- */
+const PRESETS=[
+  ['Life','B3/S23'],['HighLife','B36/S23'],['Seeds','B2/S'],['Day & Night','B3678/S34678'],
+  ['Maze','B3/S12345'],['Replicator','B1357/S1357'],['Diamoeba','B35678/S5678'],
+];
+const preset=$('#preset'),ruleText=$('#ruleText');
+PRESETS.forEach(([n,r])=>{const o=document.createElement('option');o.value=r;o.textContent=`${n} · ${r}`;preset.append(o)});
+const other=document.createElement('option');other.value='';other.textContent='Your own';preset.append(other);
+function setRule(text){
+  const m=/^\s*B([1-8]*)\s*\/\s*S([0-8]*)\s*$/i.exec(text);
+  ruleText.classList.toggle('bad',!m);
+  if(!m)return;
+  B=new Set([...m[1]].map(Number));S=new Set([...m[2]].map(Number).filter(n=>n>0));
+  const canon=`B${[...B].sort().join('')}/S${[...S].sort().join('')}`;
+  preset.value=PRESETS.some(p=>p[1]===canon)?canon:'';
+}
+preset.addEventListener('change',()=>{if(preset.value){ruleText.value=preset.value;setRule(preset.value)}});
+ruleText.addEventListener('input',()=>setRule(ruleText.value));
+
+/* ---- running ---- */
+const SPEEDS=[1,2,3,5,8,12,20,30,45,60,90,'max'];
+const speed=$('#speed'),speedOut=$('#speedOut');
+let running=false,last=0,debt=0;
+function syncSpeed(){const v=SPEEDS[speed.value-1];speedOut.textContent=v==='max'?'max':`${v} / s`}
+speed.addEventListener('input',syncSpeed);
+function setRunning(on){running=on;$('#play').textContent=on?'Pause':'Play';if(on){last=performance.now();debt=0;requestAnimationFrame(loop)}}
+function loop(now){
+  if(!running)return;
+  const v=SPEEDS[speed.value-1];
+  if(v==='max'){const t0=performance.now();do step();while(performance.now()-t0<12&&alive.size<4000)}
+  else{debt+=Math.min(0.25,(now-last)/1000)*v;let n=0;while(debt>=1&&n<8){step();debt-=1;n++}}
+  last=now;draw();
+  if(!alive.size){setRunning(false);return}
+  requestAnimationFrame(loop);
+}
+$('#play').addEventListener('click',()=>setRunning(!running));
+$('#step').addEventListener('click',()=>{setRunning(false);step();draw()});
+$('#clear').addEventListener('click',()=>{setRunning(false);alive=new Set();born=new Map();gen=0;draw()});
+$('#random').addEventListener('click',()=>{
+  const [ax,ay]=toCell(W*0.1,H*0.1),[bx,by]=toCell(W*0.9,H*0.9);
+  for(let x=ax;x<=bx;x++)for(let y=ay;y<=by;y++)if(Math.random()<0.3){const k=key(x,y);if(!alive.has(k)){alive.add(k);born.set(k,-1)}}
+  draw();
+});
+$('#births').addEventListener('change',e=>{showBirths=e.target.checked;draw()});
+
+/* ---- view controls ---- */
+function zoomAt(f,px,py){
+  const wx=(px-W/2)/view.cs+view.cx,wy=(py-H/2)/view.cs+view.cy;
+  view.cs=Math.max(1.5,Math.min(60,view.cs*f));
+  view.cx=wx-(px-W/2)/view.cs;view.cy=wy-(py-H/2)/view.cs;draw();
+}
+$('#zoomIn').addEventListener('click',()=>zoomAt(1.4,W/2,H/2));
+$('#zoomOut').addEventListener('click',()=>zoomAt(1/1.4,W/2,H/2));
+function fit(){
+  if(!alive.size){view.cx=0;view.cy=0;view.cs=22;draw();return}
+  let a=Infinity,b=-Infinity,c=Infinity,d=-Infinity;
+  for(const k of alive){const x=kx(k),y=ky(k);a=Math.min(a,x);b=Math.max(b,x);c=Math.min(c,y);d=Math.max(d,y)}
+  view.cx=(a+b+1)/2;view.cy=(c+d+1)/2;
+  view.cs=Math.max(1.5,Math.min(40,Math.min(W/(b-a+9),H/(d-c+9))));draw();
+}
+$('#fit').addEventListener('click',fit);
+let moveMode=false;
+$('#mode').addEventListener('click',()=>{moveMode=!moveMode;$('#mode').setAttribute('aria-pressed',String(moveMode));cv.classList.toggle('moving',moveMode)});
+cv.addEventListener('wheel',e=>{e.preventDefault();const r=cv.getBoundingClientRect();zoomAt(Math.exp(-Math.max(-0.5,Math.min(0.5,e.deltaY*0.0015))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* ---- drawing on the grid ---- */
+let drag=null;
+const pos=e=>{const r=cv.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]};
+cv.addEventListener('pointerdown',e=>{
+  const [px,py]=pos(e);cv.setPointerCapture(e.pointerId);
+  if(e.button===2||e.button===1||moveMode||e.shiftKey){drag={pan:true,px,py};cv.classList.add('grabbing');return}
+  const [x,y]=toCell(px,py);
+  if(stamp){place(x,y,stamp.cells);draw();return}
+  const k=key(x,y),erase=alive.has(k);
+  drag={pan:false,erase,last:[x,y]};
+  paint(x,y,erase);draw();
+});
+function paint(x,y,erase){const k=key(x,y);if(erase){alive.delete(k);born.delete(k)}else if(!alive.has(k)){alive.add(k);born.set(k,-1)}}
+cv.addEventListener('pointermove',e=>{
+  const [px,py]=pos(e);
+  hover=toCell(px,py);
+  if(!drag){if(stamp)draw();return}
+  if(drag.pan){view.cx-=(px-drag.px)/view.cs;view.cy-=(py-drag.py)/view.cs;drag.px=px;drag.py=py;draw();return}
+  // Every cell on the way, so a quick stroke leaves no gaps.
+  const [x,y]=hover,[lx,ly]=drag.last,n=Math.max(Math.abs(x-lx),Math.abs(y-ly));
+  for(let i=1;i<=n;i++)paint(Math.round(lx+(x-lx)*i/n),Math.round(ly+(y-ly)*i/n),drag.erase);
+  drag.last=[x,y];draw();
+});
+const end=()=>{drag=null;cv.classList.remove('grabbing')};
+cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+cv.addEventListener('pointerleave',()=>{hover=null;if(stamp)draw()});
+
+window.addEventListener('keydown',e=>{
+  const t=e.target;if(t instanceof HTMLElement&&(t.tagName==='INPUT'&&t.type==='text'||t.tagName==='SELECT'))return;
+  if(e.key===' '){e.preventDefault();setRunning(!running)}
+  else if(e.key==='n'||e.key==='N'){setRunning(false);step();draw()}
+  else if(e.key==='Escape'&&stamp)setStamp(null);
+  else if((e.key==='r'||e.key==='R')&&stamp){stamp={...stamp,cells:rotate(stamp.cells)};draw()}
+});
+
+/* ---- start: five cells, waiting for Play ---- */
+ruleText.value='B3/S23';setRule('B3/S23');syncSpeed();
+place(0,0,cellsOf(PATTERNS[0].rows));
+new ResizeObserver(resize).observe(cv);
+})();
+</script>
+<script>
+if(window.parent!==window)window.addEventListener('keydown',e=>{
+  const t=e.target,typing=t instanceof HTMLElement&&(t.isContentEditable||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&!['range','checkbox','button','color'].includes(t.type)));
+  if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(!['ArrowRight','ArrowLeft','PageDown','PageUp','Home','End','f','F'].includes(e.key))return;
+  e.preventDefault();window.parent.postMessage({deckKey:e.key},'*');
+});
+</script>
+</body>
+</html>
