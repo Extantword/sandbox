@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wolfram</title>
+<style>
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Regular.woff2) format("woff2");font-weight:400;font-style:normal}
+@font-face{font-family:"KaTeX_Main";src:url(../fonts/KaTeX_Main-Italic.woff2) format("woff2");font-weight:400;font-style:italic}
+:root{
+  --bg:#FFFFFF; --panel:#FAFAFB; --paper:#FFFFFF; --off:#F1F2F4;
+  --ink:#1B1D22; --muted:#9097A1; --line:#E3E5E9; --hi:#F27305;
+  --serif:"KaTeX_Main","Latin Modern Roman","Iowan Old Style",Georgia,serif;
+  --sans:ui-sans-serif, system-ui, sans-serif;
+  --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+
+header{display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;padding:4px 20px 14px}
+h1{font:400 30px/1.1 var(--serif);margin:0}
+header p{margin:0;color:var(--muted);font:17px/1.4 var(--serif);max-width:78ch}
+
+main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(300px,360px) 1fr;gap:20px;padding:0 20px 8px}
+.side{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:16px;padding-right:4px}
+.side h2{font:400 18px var(--serif);margin:0 0 8px}
+
+/* The rule, written by hand: eight cases, and under each what it makes. */
+.cases{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 8px}
+.case{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0 4px;border:1px solid transparent;border-radius:.5em;transition:border-color .15s,background .15s}
+.case.lit{border-color:var(--hi);background:color-mix(in srgb,var(--hi) 7%,transparent)}
+.case .top{display:flex;gap:2px}
+.case i{display:block;width:16px;height:16px;border:1px solid var(--line);background:var(--paper)}
+.case i.on{background:var(--ink);border-color:var(--ink)}
+.case button{width:18px;height:18px;padding:0;border:1.5px solid var(--ink);background:var(--paper);cursor:pointer;border-radius:2px}
+.case button.on{background:var(--ink)}
+.case button:hover{border-color:var(--hi)}
+.case small{font:11px var(--mono);color:var(--muted)}
+
+.number{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:14px;color:var(--muted)}
+.number input{width:5em;font:15px var(--mono);border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:var(--paper)}
+.number code{font:13px var(--mono);color:var(--ink);letter-spacing:.08em}
+
+.presets{display:flex;flex-wrap:wrap;gap:6px}
+.preset{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:3px 11px;cursor:pointer;font-size:13px}
+.preset:hover{border-color:var(--hi)}
+.preset[aria-pressed="true"]{border-color:var(--hi);color:var(--hi)}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);background:transparent;border-radius:999px;padding:6px 16px;cursor:pointer;font-size:14px;transition:border-color .2s,background .2s}
+.btn:hover{border-color:var(--hi)}
+.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff;min-width:6.5em}
+.btn.primary:hover{background:var(--hi);border-color:var(--hi)}
+.row{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
+.row input[type=range]{flex:1;accent-color:var(--hi)}
+.row output{min-width:6ch;font:13px var(--mono);color:var(--ink)}
+.row select{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:14px}
+.readout{display:flex;gap:18px;font:13px var(--mono);color:var(--muted)}
+.readout b{font-weight:500;color:var(--ink)}
+.note{margin:0;font-size:13px;color:var(--muted);max-width:52ch}
+
+.stage{position:relative;min-height:0;border:1px solid var(--line);border-radius:.6em;overflow:hidden;box-shadow:0 2px 22px rgb(0 0 0 / 5%);background:var(--paper)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none}
+.hint{position:absolute;left:10px;bottom:8px;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--paper) 85%,transparent);padding:3px 8px;border-radius:6px;pointer-events:none}
+
+@media (max-width:860px){
+  html,body{height:auto}
+  main{grid-template-columns:1fr;padding:0 14px 16px}
+  .stage{order:-1;height:56vh}
+  .side{overflow:visible}
+  header{padding:12px 14px 8px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Wolfram</h1>
+  <p>Elementary cellular automata. Each cell looks at itself and its two neighbours; for each of the eight cases, you decide what goes underneath.</p>
+</header>
+
+<main>
+  <section class="side" aria-label="Controls">
+    <div>
+      <h2>Rule</h2>
+      <div class="cases" id="cases"></div>
+      <div class="number">
+        <label for="ruleNum">Rule</label>
+        <input id="ruleNum" type="number" min="0" max="255" inputmode="numeric">
+        <code id="binary"></code>
+      </div>
+    </div>
+    <div class="presets" id="presets" aria-label="Famous rules"></div>
+
+    <div class="controls">
+      <button class="btn primary" id="play">Play</button>
+      <button class="btn" id="step" title="One row (N)">Step</button>
+      <button class="btn" id="restart">Restart</button>
+      <button class="btn" id="randomRule" title="Any of the 256">Random rule</button>
+    </div>
+    <label class="row">Speed <input type="range" id="speed" min="1" max="8" value="5"><output id="speedOut"></output></label>
+    <label class="row">Width <input type="range" id="width" min="31" max="401" step="10" value="161"><output id="widthOut"></output></label>
+    <label class="row">Start
+      <select id="start">
+        <option value="single">one black cell</option>
+        <option value="random">random</option>
+        <option value="empty">empty: draw your own</option>
+      </select>
+    </label>
+    <label class="row">Edges
+      <select id="edges">
+        <option value="wrap">wrap around</option>
+        <option value="white">white beyond</option>
+      </select>
+    </label>
+    <div class="readout" aria-live="off"><span>rule <b id="ruleOut">30</b></span><span>row <b id="gen">0</b></span></div>
+    <p class="note">Click a cell on the newest row to flip it, even while it runs. Point at any cell to see the three it came from and the case that made it.</p>
+  </section>
+
+  <section class="stage" aria-label="The evolution, one row per step">
+    <canvas id="cv" role="img" aria-label="Rows of cells, each made from the one above it"></canvas>
+    <div class="hint">newest row in orange · space plays</div>
+  </section>
+</main>
+
+<script>
+(function(){
+'use strict';
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const INK='#1B1D22',HI='#F27305',OFF='#F4F5F6';
+
+let rule=30,width=161,rows=[],running=false;
+const MAX_ROWS=4000;
+
+/* ---- the rule: bit k says what the case with neighbourhood k (l c r in binary) makes ---- */
+const casesEl=$('#cases');
+const caseEls=[];
+for(let k=7;k>=0;k--){
+  const el=document.createElement('div');el.className='case';
+  const bits=[(k>>2)&1,(k>>1)&1,k&1];
+  el.innerHTML=`<div class="top">${bits.map(b=>`<i class="${b?'on':''}"></i>`).join('')}</div><button type="button" aria-label="What ${bits.join('')} makes"></button><small>${bits.join('')}</small>`;
+  el.querySelector('button').addEventListener('click',()=>setRule(rule^(1<<k)));
+  casesEl.append(el);caseEls[k]=el;
+}
+const PRESETS=[[30,'chaos'],[90,'Sierpiński'],[110,'universal'],[184,'traffic'],[54,''],[150,''],[45,''],[73,''],[18,''],[250,'']];
+const presetsEl=$('#presets');
+PRESETS.forEach(([n,name])=>{
+  const b=document.createElement('button');b.type='button';b.className='preset';b.dataset.n=n;
+  b.textContent=name?`${n} · ${name}`:String(n);
+  b.addEventListener('click',()=>setRule(n));presetsEl.append(b);
+});
+function setRule(n){
+  rule=((n|0)%256+256)%256;
+  for(let k=0;k<8;k++)caseEls[k].querySelector('button').classList.toggle('on',((rule>>k)&1)===1);
+  if(document.activeElement!==$('#ruleNum'))$('#ruleNum').value=rule;
+  $('#binary').textContent=rule.toString(2).padStart(8,'0');
+  $('#ruleOut').textContent=rule;
+  presetsEl.querySelectorAll('.preset').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.n===rule)));
+  draw();
+}
+$('#ruleNum').addEventListener('input',e=>{const v=parseInt(e.target.value,10);if(Number.isFinite(v)&&v>=0&&v<=255)setRule(v)});
+$('#randomRule').addEventListener('click',()=>setRule(Math.floor(Math.random()*256)));
+
+/* ---- the rows ---- */
+function first(){
+  const row=new Uint8Array(width),mode=$('#start').value;
+  if(mode==='single')row[width>>1]=1;
+  else if(mode==='random')for(let i=0;i<width;i++)row[i]=Math.random()<0.5?1:0;
+  return row;
+}
+function restart(){rows=[first()];draw()}
+function step(){
+  const a=rows[rows.length-1],b=new Uint8Array(width),wrap=$('#edges').value==='wrap';
+  for(let i=0;i<width;i++){
+    const l=i>0?a[i-1]:(wrap?a[width-1]:0),r=i<width-1?a[i+1]:(wrap?a[0]:0);
+    b[i]=(rule>>((l<<2)|(a[i]<<1)|r))&1;
+  }
+  rows.push(b);if(rows.length>MAX_ROWS)rows.shift();
+}
+
+/* ---- drawing: as many rows as fit, the newest at the bottom ---- */
+let W=0,H=0,hover=null;
+function resize(){
+  const r=cv.getBoundingClientRect();W=r.width;H=r.height;const d=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(W*d));cv.height=Math.max(1,Math.round(H*d));ctx.setTransform(d,0,0,d,0,0);draw();
+}
+function layout(){
+  const cs=W/width,fit=Math.max(1,Math.floor(H/cs));
+  const start=Math.max(0,rows.length-fit);
+  return {cs,fit,start};
+}
+function draw(){
+  if(!W)return;
+  ctx.clearRect(0,0,W,H);
+  const {cs,start}=layout(),gap=cs>=6?1:0;
+  for(let r=start;r<rows.length;r++){
+    const row=rows[r],y=(r-start)*cs,last=r===rows.length-1;
+    ctx.fillStyle=last?HI:INK;
+    for(let i=0;i<width;i++)if(row[i])ctx.fillRect(i*cs,y,cs-gap,cs-gap);
+    if(last&&gap){ctx.fillStyle=OFF;for(let i=0;i<width;i++)if(!row[i])ctx.fillRect(i*cs,y,cs-gap,cs-gap)}
+  }
+  caseEls.forEach(el=>el.classList.remove('lit'));
+  if(hover){
+    const {r,i}=hover;
+    if(r>0&&r<rows.length&&r-1>=start){
+      const above=rows[r-1],wrap=$('#edges').value==='wrap';
+      const l=i>0?above[i-1]:(wrap?above[width-1]:0),c=above[i],rr=i<width-1?above[i+1]:(wrap?above[0]:0);
+      caseEls[(l<<2)|(c<<1)|rr].classList.add('lit');
+      ctx.strokeStyle=HI;ctx.lineWidth=2;
+      ctx.strokeRect((i-1)*cs-1,(r-1-start)*cs-1,cs*3+1,cs+1);
+      ctx.strokeRect(i*cs-1,(r-start)*cs-1,cs+1,cs+1);
+    }
+  }
+  $('#gen').textContent=(rows.length-1).toLocaleString('en-US');
+}
+
+/* ---- running ---- */
+const SPEEDS=[2,5,10,20,40,80,160,'max'];
+let last=0,debt=0;
+function syncSpeed(){const v=SPEEDS[$('#speed').value-1];$('#speedOut').textContent=v==='max'?'max':`${v} / s`}
+function setRunning(on){running=on;$('#play').textContent=on?'Pause':'Play';if(on){last=performance.now();debt=0;requestAnimationFrame(loop)}}
+function loop(now){
+  if(!running)return;
+  const v=SPEEDS[$('#speed').value-1];
+  if(v==='max'){for(let k=0;k<Math.max(1,layout().fit>>4);k++)step()}
+  else{debt+=Math.min(0.25,(now-last)/1000)*v;let n=0;while(debt>=1&&n<16){step();debt-=1;n++}}
+  last=now;draw();requestAnimationFrame(loop);
+}
+$('#play').addEventListener('click',()=>setRunning(!running));
+$('#step').addEventListener('click',()=>{setRunning(false);step();draw()});
+$('#restart').addEventListener('click',restart);
+$('#speed').addEventListener('input',syncSpeed);
+$('#width').addEventListener('input',e=>{width=+e.target.value;$('#widthOut').textContent=width;restart()});
+$('#start').addEventListener('change',restart);
+$('#edges').addEventListener('change',draw);
+
+/* ---- pointing and flipping ---- */
+function cellAt(e){
+  const b=cv.getBoundingClientRect(),{cs,start}=layout();
+  const i=Math.floor((e.clientX-b.left)/cs),r=start+Math.floor((e.clientY-b.top)/cs);
+  return i>=0&&i<width&&r<rows.length?{r,i}:null;
+}
+let painting=null;
+cv.addEventListener('pointerdown',e=>{
+  const at=cellAt(e);if(!at||at.r!==rows.length-1)return;
+  const row=rows[rows.length-1];painting=row[at.i]?0:1;row[at.i]=painting;cv.setPointerCapture(e.pointerId);draw();
+});
+cv.addEventListener('pointermove',e=>{
+  hover=cellAt(e);
+  if(painting!==null&&hover&&hover.r===rows.length-1)rows[hover.r][hover.i]=painting;
+  if(!running)draw();
+});
+cv.addEventListener('pointerup',()=>painting=null);
+cv.addEventListener('pointerleave',()=>{hover=null;if(!running)draw()});
+
+window.addEventListener('keydown',e=>{
+  const t=e.target;if(t instanceof HTMLElement&&(t.tagName==='INPUT'&&t.type!=='range'||t.tagName==='SELECT'))return;
+  if(e.key===' '){e.preventDefault();setRunning(!running)}
+  else if(e.key==='n'||e.key==='N'){setRunning(false);step();draw()}
+});
+
+$('#widthOut').textContent=width;syncSpeed();setRule(30);restart();
+new ResizeObserver(resize).observe(cv);
+})();
+</script>
+<script>
+if(window.parent!==window)window.addEventListener('keydown',e=>{
+  const t=e.target,typing=t instanceof HTMLElement&&(t.isContentEditable||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||(t.tagName==='INPUT'&&!['range','checkbox','button','color'].includes(t.type)));
+  if(typing||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(!['ArrowRight','ArrowLeft','PageDown','PageUp','Home','End','f','F'].includes(e.key))return;
+  e.preventDefault();window.parent.postMessage({deckKey:e.key},'*');
+});
+</script>
+</body>
+</html>
